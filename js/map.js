@@ -1,5 +1,6 @@
-// js/map.js  (SAFE COMPACT v4 — auto-add contact form + Continue; tight zoom; tools)
-// Works even if index.html is still SPLIT 1020.
+
+// js/map.js  (SAFE COMPACT v5 — satellite after selection + tight zoom + contact/tools)
+// Works even if index.html is still SPLIT 1030.
 
 const API_BASE_URL = ""; // optional parcel API later
 
@@ -23,16 +24,16 @@ window.initMap = async function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 39.8283, lng: -98.5795 },
       zoom: 4,
-      mapTypeId: "roadmap",
+      mapTypeId: "roadmap", // initial; will switch to satellite on selection
       tilt: 0,
       heading: 0
     });
-    keepOverhead();
-    lockOverhead();
+    keepOverhead();   // (now only tilt/heading)
+    lockOverhead();   // prevent tilt/heading changes
 
-    ensureLeftPaneAndForm();   // <— add contact fields + Continue if missing
+    ensureLeftPaneAndForm();   // ensure contact form + continue
     await setupAutocomplete(); // dropdown + Enter fallback
-    ensureToolbar();           // <— add tools if missing
+    ensureToolbar();           // ensure map tools
     setupDrawingTools();       // wire events
 
     say("Ready — start typing or press Enter.");
@@ -48,7 +49,6 @@ function ensureLeftPaneAndForm(){
   const page = document.querySelector(".page");
   if (!page) return;
 
-  // Find or create the left card
   let leftCard = [...page.querySelectorAll(".card")].find(c => c.querySelector(".search-box"));
   if (!leftCard) {
     leftCard = document.createElement("section");
@@ -57,7 +57,6 @@ function ensureLeftPaneAndForm(){
     page.insertBefore(leftCard, page.firstChild);
   }
 
-  // Ensure search-box + #address
   let searchBox = leftCard.querySelector(".search-box");
   if (!searchBox) {
     searchBox = document.createElement("div");
@@ -66,43 +65,24 @@ function ensureLeftPaneAndForm(){
   }
   if (!leftCard.querySelector("#address")) {
     const input = document.createElement("input");
-    input.id = "address";
-    input.name = "address";
-    input.type = "search";
-    input.placeholder = "Search address...";
-    input.autocomplete = "off";
+    input.id = "address"; input.name = "address"; input.type = "search";
+    input.placeholder = "Search address..."; input.autocomplete = "off";
     input.setAttribute("aria-label","Search for an address");
     searchBox.appendChild(input);
   }
 
-  // Ensure contact form
   if (!leftCard.querySelector("#contactForm")) {
     const form = document.createElement("form");
-    form.id = "contactForm";
-    form.noValidate = true;
+    form.id = "contactForm"; form.noValidate = true;
     form.innerHTML = `
       <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="firstName">First Name</label>
-          <input id="firstName" name="firstName" type="text" autocomplete="given-name">
-        </div>
-        <div>
-          <label for="lastName">Last Name</label>
-          <input id="lastName" name="lastName" type="text" autocomplete="family-name">
-        </div>
+        <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text" autocomplete="given-name"></div>
+        <div><label for="lastName">Last Name</label><input id="lastName" name="lastName" type="text" autocomplete="family-name"></div>
       </div>
-
       <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="phone">Phone</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
-        </div>
-        <div>
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email">
-        </div>
+        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
+        <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email"></div>
       </div>
-
       <div style="margin-top:12px;">
         <label for="referrer">How did you find us?</label>
         <select id="referrer" name="referrer">
@@ -111,55 +91,19 @@ function ensureLeftPaneAndForm(){
           <option>Yard Sign / Vehicle</option><option>Other</option>
         </select>
       </div>
-
       <div class="checkbox-row">
         <input id="smsConsent" name="smsConsent" type="checkbox">
         <label for="smsConsent">Permission to contact you on this phone number</label>
       </div>
-
       <div class="half-inch-gap pair">
-        <div>
-          <label for="lotSqft">Lot sq ft</label>
-          <input id="lotSqft" name="lotSqft" type="number" min="0" step="1">
-        </div>
-        <div>
-          <label for="turfSqft">Turf sq ft</label>
-          <input id="turfSqft" name="turfSqft" type="number" min="0" step="1">
-        </div>
+        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
+        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
       </div>
-
       <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
       <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
     `;
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      say("Thanks — we’ll follow up shortly.");
-    });
+    form.addEventListener("submit", (e) => { e.preventDefault(); say("Thanks — we’ll follow up shortly."); });
     leftCard.appendChild(form);
-  } else {
-    // If form exists, ensure Lot/Turf + buttons exist
-    const ensure = (id, mk) => { if (!leftCard.querySelector("#"+id)) leftCard.querySelector("#contactForm").appendChild(mk()); };
-    ensure("lotSqft", ()=> {
-      const wrap = document.createElement("div");
-      wrap.className="half-inch-gap pair";
-      wrap.innerHTML = `
-        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
-        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
-      `;
-      return wrap;
-    });
-    if (!leftCard.querySelector("#measureBtn")) {
-      const d = document.createElement("div");
-      d.className="half-inch-gap";
-      d.innerHTML = `<button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button>`;
-      leftCard.querySelector("#contactForm").appendChild(d);
-    }
-    if (!leftCard.querySelector("#continueBtn")) {
-      const d = document.createElement("div");
-      d.className="half-inch-gap";
-      d.innerHTML = `<button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button>`;
-      leftCard.querySelector("#contactForm").appendChild(d);
-    }
   }
 }
 
@@ -169,7 +113,7 @@ async function setupAutocomplete() {
   const input = document.getElementById("address");
   if (!host || !input) return;
 
-  // Always: Enter-to-geocode fallback
+  // Enter-to-geocode fallback
   input.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -178,21 +122,20 @@ async function setupAutocomplete() {
     }
   });
 
-  // New Places element (preferred)
+  // New Places element
   if (google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places) {
     try {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-      host.appendChild(pac);      // safe mount
-      input.style.display = "none";
-      searchControlEl = pac;
+      host.appendChild(pac); input.style.display = "none"; searchControlEl = pac;
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
         try {
           const place = placePrediction.toPlace();
           await place.fetchFields({ fields: ["formattedAddress","location","viewport"] });
           moveCamera(place.location ?? null, place.viewport ?? null, 19); // tight zoom
+          setSatellite(); // <— switch to satellite on selection
           if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
         } catch (err) { console.warn("[places:new] select error:", err); }
       });
@@ -208,13 +151,12 @@ async function setupAutocomplete() {
   // Legacy Autocomplete
   if (google?.maps?.places?.Autocomplete) {
     const ac = new google.maps.places.Autocomplete(input, {
-      types: ["address"],
-      fields: ["formatted_address","geometry"]
+      types: ["address"], fields: ["formatted_address","geometry"]
     });
     ac.addListener("place_changed", () => {
-      const p = ac.getPlace();
-      if (!p || !p.geometry) return;
-      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19); // tight zoom
+      const p = ac.getPlace(); if (!p || !p.geometry) return;
+      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+      setSatellite(); // <— switch to satellite on selection
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
     searchControlEl = input;
@@ -236,7 +178,8 @@ function geocode(q) {
     g.geocode({ address: q }, (results, status) => {
       if (status === "OK" && results[0]) {
         const r = results[0];
-        moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19); // tight zoom
+        moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19);
+        setSatellite(); // <— satellite after Enter search too
         say("Address found — outline lot or measure turf.");
       } else {
         say("Geocode failed — try a full address.");
@@ -246,7 +189,7 @@ function geocode(q) {
   });
 }
 
-/** Tight zoom helper */
+/** Tight zoom + overhead (2D). Type is handled separately via setSatellite(). */
 function moveCamera(location, viewport, zoom = 19) {
   if (location) {
     map.setCenter(location);
@@ -265,11 +208,18 @@ function moveCamera(location, viewport, zoom = 19) {
   keepOverhead();
 }
 
+// ---------- Map type helpers ----------
+function setSatellite() {
+  if (map.getMapTypeId && map.getMapTypeId() !== "satellite") {
+    map.setMapTypeId("satellite");
+  }
+  keepOverhead(); // ensure 2D (tilt 0) even in satellite
+}
+
 // ---------- TOOLBAR (auto-create if missing) ----------
 function ensureToolbar() {
   let tools = document.querySelector(".tools");
   if (tools) return tools;
-
   const mapCard = document.querySelector(".map-card") || document.body;
   tools = document.createElement("nav");
   tools.className = "tools";
@@ -293,7 +243,6 @@ function ensureToolbar() {
   });
   const again = tools.querySelector("#btnSearchAgain");
   if (again) { again.style.background = "#22c55e"; again.style.color = "#fff"; again.style.borderColor = "#16a34a"; }
-
   mapCard.appendChild(tools);
   return tools;
 }
@@ -305,7 +254,6 @@ function setupDrawingTools() {
     say("Drawing tools unavailable — check script libraries.");
     return;
   }
-
   drawMgr = new google.maps.drawing.DrawingManager({
     drawingControl: false,
     polygonOptions: { fillColor:"#22c55e55", strokeColor:"#16a34a", strokeWeight:2 }
@@ -451,8 +399,11 @@ function drawParcel(geometry){
 }
 
 // ---------- HELPERS ----------
-function keepOverhead(){ map.setMapTypeId("roadmap"); map.setHeading(0); map.setTilt(0); }
-function lockOverhead(){ map.addListener("tilt_changed",()=> map.getTilt()!==0 && map.setTilt(0)); map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0)); }
+function keepOverhead(){ map.setHeading(0); map.setTilt(0); } // <— no mapTypeId here anymore
+function lockOverhead(){
+  map.addListener("tilt_changed",   ()=> map.getTilt()!==0    && map.setTilt(0));
+  map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0));
+}
 function fit(poly){ const b=new google.maps.LatLngBounds(); poly.getPath().forEach(p=>b.extend(p)); map.fitBounds(b); keepOverhead(); }
 function updateAreas(){
   const m2 = (poly)=>google.maps.geometry.spherical.computeArea(poly.getPath());
