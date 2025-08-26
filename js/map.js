@@ -250,9 +250,18 @@ async function setupAutocomplete() {
       host.appendChild(pac);
 input.style.display = "none";
 flattenSearchBox(host);                 // <— add this line
+// Make the new element the only search UI — remove the wrapper + old input
 pac.style.width = "100%";
 pac.style.display = "block";
+if (input && input.remove) input.remove();
+if (host && host.replaceWith) {
+  host.replaceWith(pac);          // ← no more outer pill, so it can’t “come back”
+} else {
+  // safety fallback
+  host.appendChild(pac);
+}
 searchControlEl = pac;
+
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
         try {
