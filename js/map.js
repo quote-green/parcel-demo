@@ -118,11 +118,24 @@ function geocode(q) {
     });
   });
 }
-function moveCamera(location, viewport) {
-  if (viewport) map.fitBounds(viewport);
-  else if (location) { map.setCenter(location); map.setZoom(18); }
-  keepOverhead();
+function moveCamera(location, viewport, zoom = 19) {
+  // zoom: how close you want to be (19 is house-level; 20 is really tight)
+  if (viewport) {
+    map.fitBounds(viewport);
+    // After fitBounds settles, force a tight zoom
+    google.maps.event.addListenerOnce(map, "idle", () => {
+      map.setZoom(zoom);
+      keepOverhead();
+    });
+  } else if (location) {
+    map.setCenter(location);
+    map.setZoom(zoom);
+    keepOverhead();
+  } else {
+    keepOverhead();
+  }
 }
+
 
 // --------- DRAWING TOOLS ----------
 function setupDrawingTools() {
