@@ -246,21 +246,16 @@ async function setupAutocomplete() {
     try {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
-      pac.style.width = "100%";
-      host.appendChild(pac);
-input.style.display = "none";
-flattenSearchBox(host);                 // <— add this line
-// Make the new element the only search UI — remove the wrapper + old input
-pac.style.width = "100%";
-pac.style.display = "block";
+ // style + replace wrapper so there’s only one box
+styleSearchElement(pac);
 if (input && input.remove) input.remove();
 if (host && host.replaceWith) {
-  host.replaceWith(pac);          // ← no more outer pill, so it can’t “come back”
+  host.replaceWith(pac);
 } else {
-  // safety fallback
   host.appendChild(pac);
 }
 searchControlEl = pac;
+
 
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
