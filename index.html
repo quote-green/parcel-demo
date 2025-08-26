@@ -1,140 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Search + Measure</title>
+/* ===================== CONFIG ===================== */
+/** Optional: set this later if you deploy a Vercel API
+ *  e.g. const API_BASE_URL = "https://parcel-api-xyz.vercel.app";
+ */
+const API_BASE_URL = "";
 
-  <!-- External CSS so the map always has height -->
-  <link rel="stylesheet" href="css/styles.css" />
+/* ===================== STATE ====================== */
+let map, drawManager;
+let lotPolygon = null;
+const turfPolygons = [];
 
-  <style>
-    :root{
-      --gap:24px;--half-inch:0.5in;--green:#22c55e;--green-dark:#16a34a;--border:#e5e7eb;--text:#0f172a;--muted:#64748b;--bg:#f8fafc;--white:#fff;--shadow:0 8px 24px rgba(0,0,0,.08);--radius:16px;
+/* ===================== INIT ======================= */
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 39.8283, lng: -98.5795 },
+    zoom: 4,
+    mapTypeId: "roadmap",
+    tilt: 0,
+    heading: 0,
+  });
+
+  drawManager = new google.maps.drawing.DrawingManager({
+    drawingControl: false,
+    polygonOptions: { fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 },
+  });
+  drawManager.setMap(map);
+
+  setupAutocomplete(); // uses #address
+  bindUI();            // wires your buttons by ID
+  forceTopDown();
+  lockTopDown();
+}
+window.initMap = initMap; // REQUIRED for the Google callback
+
+/* ================= AUTOCOMPLETE =================== */
+function setupAutocomplete() {
+  const input = document.getElementById("address");
+  if (!input) return;
+
+  // Places Autocomplete
+  const ac = new google.maps.places.Autocomplete(input, { fields: ["geometry"] });
+  ac.addListener("place_changed", () => {
+    const place = ac.getPlace();
+    if (place && place.geometry && place.geometry.location) {
+      map.setCenter(place.geometry.location);
+      map.setZoom(18);
+      forceTopDown();
+      setCaption("Address found. You can outline the lot or start measuring turf.");
     }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .page{max-width:1400px;margin:40px auto;padding:0 20px;display:grid;grid-template-columns:1fr 1.5fr;gap:var(--gap)}
-    @media (max-width:900px){.page{grid-template-columns:1fr}}
-    .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
-    .search-box{position:relative;display:flex;align-items:center;gap:10px;border:2px solid #1f2937;border-radius:999px;padding:10px 14px;background:#e5e7eb}
-    .search-box input[type="search"]{flex:1;border:none;outline:none;font-size:16px;background:transparent;color:#111827}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
-    input[type=text],input[type=email],input[type=tel],input[type=number],select{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:var(--white)}
-    .checkbox-row{display:flex;align-items:center;gap:10px;margin-top:8px}
-    .checkbox-row input[type=checkbox]{width:18px;height:18px}
-    .half-inch-gap{margin-top:var(--half-inch)}
-    .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .btn{width:100%;padding:14px 16px;border:0;border-radius:12px;font-weight:600;font-size:16px;cursor:pointer}
-    .btn-primary{background:var(--green);color:#fff}.btn-primary:hover{background:var(--green-dark)}
-    .btn-secondary{background:var(--green);color:#fff}.btn-secondary:hover{background:var(--green-dark)}
-    .map-card{position:relative;min-height:520px;display:flex;gap:10px;}
-    .map-box{position:relative;flex:1;height:100%;min-height:520px;border:1px solid var(--border);border-radius:14px;overflow:hidden}
-    #map{position:absolute;inset:0}
-    #mapCaption{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:10px;font-size:13px;color:#334155}
-    .pac-container{z-index:10000}
-    .tools {width:84px;flex-shrink:0;border:1px solid var(--border);border-radius:14px;background:#f9f9f9;display:flex;flex-direction:column;gap:10px;padding:10px;box-shadow:var(--shadow);height:fit-content;}
-    .tools button {width:100%;padding:10px 8px;font-size:13px;background:#fff;border:1px solid #ccc;border-radius:8px;cursor:pointer;}
-    .tools button:hover {background:#eee;}
-    .tools .btn-green{background:var(--green);color:#fff;border:1px solid var(--green-dark);}
-    .tools .btn-green:hover{background:var(--green-dark);}
-    .field-hint{color:#b91c1c;font-size:12px;margin-top:6px}
-    input:invalid, select:invalid{border-color:#fca5a5}
-  </style>
-</head>
-<body>
-<main class="page">
-  <section class="card" aria-label="Search and contact">
-    <div class="search-box">
-      <input id="address" name="address" type="search" placeholder="Search address..." autocomplete="off" required aria-label="Search for an address" />
-    </div>
+  });
 
-    <form id="contactForm" novalidate>
-      <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="firstName">First Name</label>
-          <input id="firstName" name="firstName" type="text" required autocomplete="given-name">
-        </div>
-        <div>
-          <label for="lastName">Last Name</label>
-          <input id="lastName" name="lastName" type="text" required autocomplete="family-name">
-        </div>
-      </div>
+  // Fallback: Enter key triggers Geocoder if autocomplete didn't fire
+  input.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const q = (input.value || "").trim();
+      if (q) await fallbackGeocode(q);
+    }
+  });
+}
 
-      <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="phone">Phone</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" required autocomplete="tel">
-        </div>
-        <div>
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" required autocomplete="email">
-        </div>
-      </div>
+/* ===================== UI ========================= */
+function bindUI() {
+  const $ = (id) => document.getElementById(id);
 
-      <div style="margin-top:12px;">
-        <label for="referrer">How did you find us?</label>
-        <select id="referrer" name="referrer" required>
-          <option value="" disabled selected>Select one...</option>
-          <option>Google</option>
-          <option>Friend</option>
-          <option>Social Media</option>
-          <option>Yard Sign / Vehicle</option>
-          <option>Other</option>
-        </select>
-      </div>
+  // Right panel tools (your IDs)
+  $("btnOutlineLot")?.addEventListener("click", startDrawingLot);
+  $("btnManualTurf")?.addEventListener("click", startDrawingTurf);
 
-      <div class="checkbox-row">
-        <input id="smsConsent" name="smsConsent" type="checkbox" required>
-        <label for="smsConsent">Permission to contact you on this phone number</label>
-      </div>
+  // Measure Now button (center column)
+  $("measureBtn")?.addEventListener("click", () => {
+    setCaption("Click around the turf area. Double-click to finish.");
+    startDrawingTurf();
+  });
 
-      <div class="half-inch-gap pair">
-        <div>
-          <label for="lotSqft">Lot sq ft</label>
-          <input id="lotSqft" name="lotSqft" type="number" min="0" step="1">
-        </div>
-        <div>
-          <label for="turfSqft">Turf sq ft</label>
-          <input id="turfSqft" name="turfSqft" type="number" min="0" step="1">
-        </div>
-      </div>
+  // Search Again: clear shapes and form fields, keep the map
+  $("btnSearchAgain")?.addEventListener("click", () => {
+    resetAll();
+    setCaption("Type an address and press Enter.");
+    $("address")?.focus();
+  });
+}
 
-      <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
-      <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
-    </form>
-  </section>
+/* =============== DRAWING & STYLING ================ */
+function startDrawingLot() {
+  drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
+    if (lotPolygon) lotPolygon.setMap(null);
+    lotPolygon = poly;
+    styleLotPolygon(lotPolygon);
+    drawManager.setDrawingMode(null);
+    fitToPolygon(lotPolygon);
+    updateAreas();
+    setCaption("Lot outlined. Now add turf polygons or click Measure Now.");
+  });
+}
 
-  <section class="card map-card" aria-label="Map">
-    <div class="map-box" id="mapBox">
-      <div id="map"></div>
-      <div id="mapCaption">This will be replaced when you click Measure Now</div>
-    </div>
+function startDrawingTurf() {
+  drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
+    poly.setOptions({ fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 });
+    turfPolygons.push(poly);
+    drawManager.setDrawingMode(null);
+    updateAreas();
+  });
+}
 
-    <!-- Tools -->
-    <nav class="tools" aria-label="Map tools">
-      <button id="btnManualTurf">Manual Turf Measure</button>
-      <button id="btnOutlineLot">Outline Property Boundaries</button>
-      <button id="btnEdit">Edit</button>
-      <button id="btnDelete">Delete</button>
-      <button id="btnReset">Reset</button>
-      <button id="btnUndo">Undo</button>
-      <button id="btnRedo">Redo</button>
-      <button id="btnSave">Save</button>
-      <button id="btnSearchAgain" class="btn-green" title="Start a new search">Search Again</button>
-    </nav>
-  </section>
-</main>
+function styleLotPolygon(poly) {
+  poly.setOptions({ fillColor: "#00000000", strokeColor: "#ef4444", strokeWeight: 2 }); // red outline, no fill
+}
 
-<!-- Load your app code (defines window.initMap and everything else) -->
-<script src="js/map.js?v=4"></script>
+function fitToPolygon(poly) {
+  const bounds = new google.maps.LatLngBounds();
+  poly.getPath().forEach((p) => bounds.extend(p));
+  map.fitBounds(bounds);
+  forceTopDown();
+}
 
-<!-- Load Google Maps once (replace with your real key), async, with callback -->
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async&_cb=4"
-  async
-  defer
-></script>
-</body>
-</html>
+/* =================== AREAS ======================== */
+function updateAreas() {
+  const lotFt2 =
+    lotPolygon ? google.maps.geometry.spherical.computeArea(lotPolygon.getPath()) * 10.7639 : 0;
+
+  const turfFt2 = turfPolygons.reduce((sum, p) => {
+    const m2 = google.maps.geometry.spherical.computeArea(p.getPath());
+    return sum + m2 * 10.7639;
+  }, 0);
+
+  const setNum = (id, n) => {
+    const el = document.getElementById(id);
+    if (el) el.value = Math.round(n);
+  };
+  setNum("lotSqft", lotFt2);
+  setNum("turfSqft", turfFt2);
+}
+
+/* ================= CAMERA CONTROL ================= */
+function forceTopDown() {
+  if (!map) return;
+  map.setMapTypeId("roadmap"); // avoids 45° imagery
+  map.setHeading(0);
+  map.setTilt(0);
+}
+function lockTopDown() {
+  map.addListener("tilt_changed", () => map.getTilt() !== 0 && map.setTilt(0));
+  map.addListener("heading_changed", () => map.getHeading() !== 0 && map.setHeading(0));
+}
+
+/* ================== GEOCODER Fallback ============= */
+async function fallbackGeocode(query) {
+  const geocoder = new google.maps.Geocoder();
+  return new Promise((resolve) => {
+    geocoder.geocode({ address: query }, (results, status) => {
+      if (status === "OK" && results[0]) {
+        const loc = results[0].geometry.location;
+        map.setCenter(loc);
+        map.setZoom(18);
+        forceTopDown();
+        setCaption("Address found. Outline the lot or start measuring turf.");
+      }
+      resolve();
+    });
+  });
+}
+
+/* ================== UTILITIES ===================== */
+function setCaption(text) {
+  const el = document.getElementById("mapCaption");
+  if (el) el.textContent = text;
+}
+
+function resetAll() {
+  if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
+  while (turfPolygons.length) turfPolygons.pop().setMap(null);
+
+  const ids = ["lotSqft", "turfSqft", "firstName", "lastName", "phone", "email"];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.value = ""; });
+}
