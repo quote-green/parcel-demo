@@ -588,5 +588,23 @@ function flattenSearchBox(host){
   host.style.background = "transparent";
   host.style.borderRadius = "0";
   host.style.boxShadow = "none";
+} 
+function styleSearchElement(el) {
+  if (!el) return;
+  // visuals
+  el.style.display = "block";
+  el.style.width = "100%";
+  el.style.boxSizing = "border-box";
+  el.style.border = "2px solid #1f2937";
+  el.style.borderRadius = "999px";      // <- round corners (change to "12px" if you prefer)
+  el.style.padding = "10px 14px";
+  el.style.background = "#e5e7eb";
+  el.style.color = "#111827";
+  el.style.outline = "none";
+  // helper text
+  if ("placeholder" in el) {
+    el.placeholder = "Search address (street, city or full address)…";
+  }
 }
+
 
