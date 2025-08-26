@@ -1,204 +1,255 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Search + Measure</title>
-  <!-- tiny transparent favicon to silence 404 -->
-  <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">
-  <style>
-    :root{--gap:24px;--green:#22c55e;--green-dark:#16a34a;--border:#e5e7eb;--text:#0f172a;--muted:#64748b;--bg:#f8fafc;--white:#fff;--shadow:0 8px 24px rgba(0,0,0,.08);--radius:16px}
-    *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .page{max-width:1400px;margin:40px auto;padding:0 20px;display:grid;grid-template-columns:1fr 1.5fr;gap:var(--gap)} @media (max-width:900px){.page{grid-template-columns:1fr}}
-    .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
-    .search-box{position:relative;display:flex;align-items:center;gap:10px;border:2px solid #1f2937;border-radius:999px;padding:10px 14px;background:#e5e7eb}
-    .search-box input[type="search"]{flex:1;border:none;outline:none;font-size:16px;background:transparent;color:#111827}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
-    input[type=text],input[type=email],input[type=tel],input[type=number],select{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:var(--white)}
-    .checkbox-row{display:flex;align-items:center;gap:10px;margin-top:8px}.checkbox-row input[type=checkbox]{width:18px;height:18px}
-    .half-inch-gap{margin-top:0.5in}.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .btn{width:100%;padding:14px 16px;border:0;border-radius:12px;font-weight:600;font-size:16px;cursor:pointer}
-    .btn-primary{background:var(--green);color:#fff}.btn-primary:hover{background:var(--green-dark)}
-    .btn-secondary{background:var(--green);color:#fff}.btn-secondary:hover{background:var(--green-dark)}
-    .map-card{position:relative;min-height:520px;display:flex;gap:10px}
-    .map-box{position:relative;flex:1;height:100%;min-height:520px;border:1px solid var(--border);border-radius:14px;overflow:hidden}
-    #map{position:absolute;inset:0}
-    #mapCaption{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:10px;font-size:13px;color:#334155}
-    .pac-container{z-index:10000}
-    .tools{width:84px;flex-shrink:0;border:1px solid var(--border);border-radius:14px;background:#f9f9f9;display:flex;flex-direction:column;gap:10px;padding:10px;box-shadow:var(--shadow);height:fit-content}
-    .tools button{width:100%;padding:10px 8px;font-size:13px;background:#fff;border:1px solid #ccc;border-radius:8px;cursor:pointer}
-    .tools button:hover{background:#eee}
-    .tools .btn-green{background:var(--green);color:#fff;border:1px solid var(--green-dark)}
-    .tools .btn-green:hover{background:var(--green-dark)}
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search + Measure</title>
+
+<!-- Tiny transparent favicon to silence /favicon.ico 404 -->
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">
+
+<style>
+  :root{--gap:24px;--green:#22c55e;--green-dark:#16a34a;--border:#e5e7eb;--text:#0f172a;--muted:#64748b;--bg:#f8fafc;--white:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  .page{max-width:1400px;margin:40px auto;padding:0 20px;display:grid;grid-template-columns:1fr 1.5fr;gap:var(--gap)}
+  @media (max-width:900px){.page{grid-template-columns:1fr}}
+  .card{background:var(--white);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.08);padding:20px}
+  .search-box{display:flex;gap:10px;border:2px solid #1f2937;border-radius:999px;padding:10px 14px;background:#e5e7eb}
+  .search-box input{flex:1;border:0;background:transparent;font-size:16px;outline:0}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+  input,select{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:var(--white)}
+  .btn{width:100%;padding:14px 16px;border:0;border-radius:12px;font-weight:600;font-size:16px;cursor:pointer}
+  .btn-primary{background:var(--green);color:#fff}.btn-primary:hover{background:var(--green-dark)}
+  .btn-secondary{background:var(--green);color:#fff}.btn-secondary:hover{background:var(--green-dark)}
+  .map-card{min-height:520px;display:flex;gap:10px}
+  .map-box{position:relative;flex:1;min-height:520px;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  #map{position:absolute;inset:0}
+  #mapCaption{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:10px;font-size:13px;color:#334155}
+  .tools{width:84px;flex-shrink:0;border:1px solid var(--border);border-radius:14px;background:#f9f9f9;display:flex;flex-direction:column;gap:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .tools button{width:100%;padding:10px 8px;font-size:13px;background:#fff;border:1px solid #ccc;border-radius:8px;cursor:pointer}
+  .tools button:hover{background:#eee}
+  .tools .btn-green{background:var(--green);color:#fff;border:1px solid #16a34a}
+  .pac-container{z-index:10000}
+  #proof{position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:14px/1.2 monospace}
+</style>
 </head>
 <body>
-<main class="page">
-  <div id="proof" style="position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:14px/1.2 monospace">
-  LIVE PROOF 9027
-</div>
+<div id="proof">LIVE PROOF 9931</div>
 
+<main class="page">
   <section class="card" aria-label="Search and contact">
     <div class="search-box">
-      <input id="address" name="address" type="search" placeholder="Search address..." autocomplete="off" required aria-label="Search for an address" />
+      <input id="address" name="address" type="search" placeholder="Search address…" autocomplete="off" aria-label="Search for an address">
     </div>
 
-    <form id="contactForm" novalidate>
-      <div class="grid-2" style="margin-top:12px;">
-        <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text" autocomplete="given-name"></div>
-        <div><label for="lastName">Last Name</label><input id="lastName" name="lastName" type="text" autocomplete="family-name"></div>
+    <form id="contactForm" novalidate style="margin-top:12px">
+      <div class="grid-2">
+        <div><label for="firstName">First Name</label><input id="firstName" name="firstName"></div>
+        <div><label for="lastName">Last Name</label><input id="lastName" name="lastName"></div>
       </div>
-      <div class="grid-2" style="margin-top:12px;">
-        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
-        <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email"></div>
+      <div class="grid-2" style="margin-top:12px">
+        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" inputmode="tel"></div>
+        <div><label for="email">Email</label><input id="email" name="email" type="email"></div>
       </div>
-      <div style="margin-top:12px;">
-        <label for="referrer">How did you find us?</label>
-        <select id="referrer" name="referrer">
-          <option value="" disabled selected>Select one...</option>
-          <option>Google</option><option>Friend</option><option>Social Media</option><option>Yard Sign / Vehicle</option><option>Other</option>
-        </select>
+      <div class="grid-2" style="margin-top:12px">
+        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0"></div>
+        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0"></div>
       </div>
-      <div class="checkbox-row"><input id="smsConsent" name="smsConsent" type="checkbox"><label for="smsConsent">Permission to contact you on this phone number</label></div>
-      <div class="half-inch-gap pair">
-        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
-        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
-      </div>
-      <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
-      <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
+      <div style="margin-top:12px"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
+      <div style="margin-top:12px"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
     </form>
   </section>
 
   <section class="card map-card" aria-label="Map">
-    <div class="map-box" id="mapBox">
+    <div class="map-box">
       <div id="map"></div>
-      <div id="mapCaption">BUILD v1 inline — type an address and press Enter</div>
+      <div id="mapCaption">Inline build — type an address and press Enter</div>
     </div>
 
+    <!-- Tools -->
     <nav class="tools" aria-label="Map tools">
       <button id="btnManualTurf">Manual Turf Measure</button>
       <button id="btnOutlineLot">Outline Property Boundaries</button>
-      <button id="btnEdit">Edit</button>
-      <button id="btnDelete">Delete</button>
       <button id="btnReset">Reset</button>
-      <button id="btnUndo">Undo</button>
-      <button id="btnRedo">Redo</button>
-      <button id="btnSave">Save</button>
-      <button id="btnSearchAgain" class="btn-green" title="Start a new search">Search Again</button>
+      <button id="btnSearchAgain" class="btn-green">Search Again</button>
     </nav>
   </section>
 </main>
 
-<!-- Inline app (so you don't need js/map.js at all) -->
+<!-- Inline app JS -->
 <script>
-const API_BASE_URL = ""; // optional later
+/* =================== CONFIG =================== */
+const API_BASE_URL = "";      // optional: your parcel API later
+const USE_PLACES   = true;    // set to false temporarily if your key blocks Places
 
-let map, drawManager, lotPolygon=null; const turfPolys=[];
+/* =================== STATE =================== */
+let map, drawMgr, lotPoly = null;
+const turfPolys = [];
 
-window.initMap = function initMap(){
-  map = new google.maps.Map(document.getElementById("map"), {
-    center:{lat:39.8283,lng:-98.5795}, zoom:4, mapTypeId:"roadmap", tilt:0, heading:0
+/* =================== MAP BOOT =================== */
+window.initMap = function(){
+  map = new google.maps.Map(document.getElementById('map'), {
+    center:{lat:39.8283,lng:-98.5795}, zoom:4, mapTypeId:'roadmap', tilt:0, heading:0
   });
   keepOverhead(); lockOverhead();
-  setupAutocomplete(); setupDrawingTools();
-  say("Ready — search or draw.");
+  setupAutocomplete(); setupDrawing(); say('Ready — search or draw.');
 };
 
+/* =================== AUTOCOMPLETE =================== */
 async function setupAutocomplete(){
-  const host=document.querySelector(".search-box"); const input=document.getElementById("address"); if(!host||!input) return;
-  input.addEventListener("keydown", async e=>{
-    if(e.key==="Enter"){ e.preventDefault(); const q=(input.value||"").trim(); if(q) await geocode(q); }
+  const host=document.querySelector('.search-box');
+  const input=document.getElementById('address');
+  if(!host||!input) return;
+
+  // Always support Enter-to-geocode
+  input.addEventListener('keydown', async (e)=>{
+    if(e.key==='Enter'){ e.preventDefault(); const q=input.value.trim(); if(q) await geocode(q); }
   });
-  try{ await google.maps.importLibrary?.("places"); }catch(_){}
-  const hasNew=!!(google?.maps?.places&&"PlaceAutocompleteElement" in google.maps.places);
-  if(hasNew){
+
+  if (!USE_PLACES) return;
+
+  // Try new Places widget first
+  try{ await google.maps.importLibrary?.('places'); }catch(_){}
+  if (google?.maps?.places && 'PlaceAutocompleteElement' in google.maps.places){
     try{
       // @ts-ignore
-      const pac=new google.maps.places.PlaceAutocompleteElement(); pac.placeholder=input.placeholder||"Search address..."; pac.style.width="100%"; host.replaceChild(pac,input);
+      const pac = new google.maps.places.PlaceAutocompleteElement();
+      pac.placeholder = input.placeholder || 'Search address…';
+      pac.style.width = '100%';
+      host.replaceChild(pac, input);
+
       // @ts-ignore
-      pac.addEventListener("gmp-select", async ({placePrediction})=>{
-        const place=placePrediction.toPlace(); await place.fetchFields({fields:["formattedAddress","location","viewport"]});
+      pac.addEventListener('gmp-select', async ({ placePrediction })=>{
+        const place = placePrediction.toPlace();
+        await place.fetchFields({ fields:['formattedAddress','location','viewport'] });
         moveTo(place.location, place.viewport);
-        if(API_BASE_URL && place.formattedAddress) tryParcel(place.formattedAddress);
+        if (API_BASE_URL && place.formattedAddress) tryParcel(place.formattedAddress);
       });
       return;
-    }catch(e){ console.warn("new places failed; legacy/fallback", e); }
+    }catch(e){ console.warn('New Places failed; falling back:', e); }
   }
-  if(google?.maps?.places?.Autocomplete){
-    const ac=new google.maps.places.Autocomplete(input,{types:["address"],fields:["formatted_address","geometry"]});
-    ac.addListener("place_changed", async ()=>{
-      const p=ac.getPlace(); if(!p||!p.geometry) return;
+
+  // Legacy Autocomplete (older projects)
+  if (google?.maps?.places?.Autocomplete){
+    const ac = new google.maps.places.Autocomplete(input, {
+      types:['address'], fields:['formatted_address','geometry']
+    });
+    ac.addListener('place_changed', ()=>{
+      const p = ac.getPlace(); if(!p||!p.geometry) return;
       moveTo(p.geometry.location, p.geometry.viewport);
-      if(API_BASE_URL && p.formatted_address) tryParcel(p.formatted_address);
+      if (API_BASE_URL && p.formatted_address) tryParcel(p.formatted_address);
     });
   }
 }
 
-function moveTo(location, viewport){
-  if(viewport) map.fitBounds(viewport); else if(location){ map.setCenter(location); map.setZoom(18); }
-  keepOverhead(); say("Address found — outline the lot or measure turf.");
-}
-
+/* =================== CAMERA HELPERS =================== */
+function moveTo(loc, vp){ if(vp) map.fitBounds(vp); else if(loc){ map.setCenter(loc); map.setZoom(18); } keepOverhead(); say('Address found — outline lot or measure turf.'); }
 async function geocode(q){
-  const g=new google.maps.Geocoder();
-  return new Promise(res=>g.geocode({address:q},(r,s)=>{
-    if(s==="OK"&&r[0]){ moveTo(r[0].geometry.location, r[0].geometry.viewport); say("Address found — outline the lot or measure turf.");}
-    else say("Geocode failed — try a full address.");
+  const g = new google.maps.Geocoder();
+  return new Promise(res => g.geocode({address:q}, (r,s)=>{
+    if (s==='OK' && r[0]) moveTo(r[0].geometry.location, r[0].geometry.viewport);
+    else say('Geocode failed — try a full address.');
     res();
   }));
 }
+function keepOverhead(){ map.setMapTypeId('roadmap'); map.setHeading(0); map.setTilt(0); }
+function lockOverhead(){ map.addListener('tilt_changed',()=>map.getTilt()!==0&&map.setTilt(0)); map.addListener('heading_changed',()=>map.getHeading()!==0&&map.setHeading(0)); }
 
-function setupDrawingTools(){
-  drawManager=new google.maps.drawing.DrawingManager({ drawingControl:false, polygonOptions:{fillColor:"#22c55e55",strokeColor:"#16a34a",strokeWeight:2} });
-  drawManager.setMap(map);
-  on("btnOutlineLot", startLot); on("btnManualTurf", startTurf); on("measureBtn", ()=>{ say("Click around turf; double-click to finish."); startTurf();}); on("btnSearchAgain", resetAll);
+/* =================== DRAWING TOOLS =================== */
+function setupDrawing(){
+  drawMgr = new google.maps.drawing.DrawingManager({
+    drawingControl:false,
+    polygonOptions:{ fillColor:'#22c55e55', strokeColor:'#16a34a', strokeWeight:2 }
+  });
+  drawMgr.setMap(map);
+
+  on('btnOutlineLot', startLot);
+  on('btnManualTurf', startTurf);
+  on('measureBtn', ()=>{ say('Click around the turf; double-click to finish.'); startTurf(); });
+  on('btnReset', resetAll);
+  on('btnSearchAgain', resetAll);
 }
 function startLot(){
-  drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-  google.maps.event.addListenerOnce(drawManager,"polygoncomplete",poly=>{
-    if(lotPolygon) lotPolygon.setMap(null); lotPolygon=poly;
-    poly.setOptions({fillColor:"#00000000",strokeColor:"#ef4444",strokeWeight:2});
-    drawManager.setDrawingMode(null); fit(poly); updateAreas(); say("Lot outlined — add turf polygons.");
+  drawMgr.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  google.maps.event.addListenerOnce(drawMgr,'polygoncomplete',poly=>{
+    if(lotPoly) lotPoly.setMap(null);
+    lotPoly = poly;
+    poly.setOptions({ fillColor:'#0000', strokeColor:'#ef4444', strokeWeight:2 }); // red outline
+    drawMgr.setDrawingMode(null);
+    fit(poly); updateAreas(); say('Lot outlined — add turf polygons.');
   });
 }
 function startTurf(){
-  drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-  google.maps.event.addListenerOnce(drawManager,"polygoncomplete",poly=>{
-    poly.setOptions({fillColor:"#22c55e55",strokeColor:"#16a34a",strokeWeight:2}); turfPolys.push(poly);
-    drawManager.setDrawingMode(null); updateAreas();
+  drawMgr.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  google.maps.event.addListenerOnce(drawMgr,'polygoncomplete',poly=>{
+    poly.setOptions({ fillColor:'#22c55e55', strokeColor:'#16a34a', strokeWeight:2 });
+    turfPolys.push(poly);
+    drawMgr.setDrawingMode(null);
+    updateAreas();
   });
 }
 function updateAreas(){
-  const m2=p=>google.maps.geometry.spherical.computeArea(p.getPath()); const lot=lotPolygon?m2(lotPolygon)*10.7639:0; const turf=turfPolys.reduce((s,p)=>s+m2(p)*10.7639,0);
-  setVal("lotSqft",Math.round(lot)); setVal("turfSqft",Math.round(turf));
+  const m2 = p => google.maps.geometry.spherical.computeArea(p.getPath());
+  const lot  = lotPoly ? m2(lotPoly)*10.7639 : 0;
+  const turf = turfPolys.reduce((s,p)=> s + m2(p)*10.7639, 0);
+  setVal('lotSqft', Math.round(lot));
+  setVal('turfSqft', Math.round(turf));
 }
-function fit(poly){ const b=new google.maps.LatLngBounds(); poly.getPath().forEach(p=>b.extend(p)); map.fitBounds(b); keepOverhead(); }
-function resetAll(){ if(lotPolygon){lotPolygon.setMap(null); lotPolygon=null;} while(turfPolys.length) turfPolys.pop().setMap(null); ["lotSqft","turfSqft","firstName","lastName","phone","email"].forEach(id=>setVal(id,"")); say("Reset — search again."); }
+function fit(poly){ const b=new google.maps.LatLngBounds(); poly.getPath().forEach(pt=>b.extend(pt)); map.fitBounds(b); keepOverhead(); }
+function resetAll(){
+  if(lotPoly){ lotPoly.setMap(null); lotPoly=null; }
+  while(turfPolys.length) turfPolys.pop().setMap(null);
+  ['lotSqft','turfSqft','firstName','lastName','phone','email'].forEach(id=>setVal(id,''));
+  say('Reset — search again.');
+}
 
+/* =================== OPTIONAL PARCEL FETCH =================== */
 async function tryParcel(addr){
-  try{ const url=`${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(addr)}`; const r=await fetch(url); if(!r.ok) throw new Error(`API ${r.status}`); const d=await r.json(); const gj=normGJ(d); const g=firstPoly(gj); if(g) drawParcel(g);}catch(e){console.warn("parcel fetch failed:", e?.message||e);}
+  try{
+    const url = `${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(addr)}`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`API ${r.status}`);
+    const d = await r.json();
+    const gj = normalizeGeoJSON(d);
+    const g  = firstPolygon(gj);
+    if (g) drawParcel(g);
+  }catch(e){ console.warn('Parcel fetch failed:', e?.message||e); }
 }
 function drawParcel(geom){
-  if(lotPolygon) lotPolygon.setMap(null);
+  if(lotPoly){ lotPoly.setMap(null); lotPoly=null; }
   const ring = outerRing(geom); if(!ring||!ring.length) return;
-  const path = ring.map(([lng,lat])=>({lat,lng}));
-  lotPolygon = new google.maps.Polygon({paths:path,map,strokeColor:"#ef4444",strokeWeight:2,fillOpacity:0});
-  fit(lotPolygon); updateAreas(); say("Parcel drawn — add turf polygons.");
+  const path = ring.map(([lng,lat])=>({ lat, lng }));
+  lotPoly = new google.maps.Polygon({ paths:path, map, strokeColor:'#ef4444', strokeWeight:2, fillOpacity:0 });
+  fit(lotPoly); updateAreas(); say('Parcel drawn — add turf polygons.');
 }
 
-// helpers
-function keepOverhead(){ map.setMapTypeId("roadmap"); map.setHeading(0); map.setTilt(0); }
-function lockOverhead(){ map.addListener("tilt_changed",()=>map.getTilt()!==0&&map.setTilt(0)); map.addListener("heading_changed",()=>map.getHeading()!==0&&map.setHeading(0)); }
-function on(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener("click",fn); }
+/* =================== UTILS =================== */
+function on(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',fn); }
 function setVal(id,v){ const el=document.getElementById(id); if(el) el.value=v; }
-function say(t){ const el=document.getElementById("mapCaption"); if(el) el.textContent=t; }
-function normGJ(p){ if(p?.type==="FeatureCollection"||p?.type==="Feature") return p; if(Array.isArray(p?.features)) return {type:"FeatureCollection",features:p.features}; if(p?.geometry?.type&&p?.geometry?.coordinates) return {type:"Feature",geometry:p.geometry,properties:p.properties||{}}; return {type:"FeatureCollection",features:[]}; }
-function firstPoly(gj){ const fs=gj?.type==="FeatureCollection"?gj.features:[gj]; const f=(fs||[]).find(x=>x?.geometry?.type?.includes("Polygon")); return f?f.geometry:null; }
-function outerRing(g){ if(!g||!g.coordinates) return null; const c=g.coordinates; if(g.type==="MultiPolygon") return c?.[0]?.[0]||null; if(g.type==="Polygon") return c?.[0]||null; if(Array.isArray(c?.[0])&&typeof c[0][0]==="number") return c; return null; }
+function say(t){ const el=document.getElementById('mapCaption'); if(el) el.textContent=t; }
+function normalizeGeoJSON(p){
+  if (p?.type==='FeatureCollection' || p?.type==='Feature') return p;
+  if (Array.isArray(p?.features)) return { type:'FeatureCollection', features:p.features };
+  if (p?.geometry?.type && p?.geometry?.coordinates) return { type:'Feature', geometry:p.geometry, properties:p.properties||{} };
+  return { type:'FeatureCollection', features:[] };
+}
+function firstPolygon(gj){
+  const feats = gj?.type==='FeatureCollection' ? gj.features : [gj];
+  const f = (feats||[]).find(x=>x?.geometry?.type?.includes('Polygon'));
+  return f ? f.geometry : null;
+}
+function outerRing(g){
+  if(!g||!g.coordinates) return null;
+  const c = g.coordinates;
+  if (g.type==='MultiPolygon') return c?.[0]?.[0] || null;
+  if (g.type==='Polygon')      return c?.[0] || null;
+  if (Array.isArray(c?.[0]) && typeof c[0][0] === 'number') return c;
+  return null;
+}
 </script>
 
-<!-- Google Maps (replace YOUR_KEY; keep callback=initMap) -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&libraries=places,drawing,geometry&callback=initMap&loading=async" async defer></script>
+<!-- Google Maps (PUT YOUR REAL KEY BELOW; keep callback=initMap) -->
+<script src="https://maps.googleapis.com/maps/api/js?key=REPLACE_WITH_YOUR_KEY&libraries=places,drawing,geometry&callback=initMap&loading=async" async defer></script>
 </body>
 </html>
