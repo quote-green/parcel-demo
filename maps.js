@@ -1,8 +1,5 @@
-
-
-
-// js/map.js  (SAFE COMPACT v5 — satellite after selection + tight zoom + contact/tools)
-// Works even if index.html is still SPLIT 1030.
+// js/map.js  (SAFE COMPACT v8 — required fields enforced + no refresh + satellite)
+// Requires: your current index.html. Search Again still hard-reloads.
 
 const API_BASE_URL = ""; // optional parcel API later
 
@@ -23,30 +20,48 @@ window.initMap = async function initMap() {
       try { await google.maps.importLibrary("places"); } catch (_) {}
     }
 
+    // Start in SATELLITE
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 39.8283, lng: -98.5795 },
       zoom: 4,
-      mapTypeId: "roadmap", // initial; will switch to satellite on selection
+      mapTypeId: "satellite",
       tilt: 0,
       heading: 0
     });
-    keepOverhead();   // (now only tilt/heading)
-    lockOverhead();   // prevent tilt/heading changes
 
-    ensureLeftPaneAndForm();   // ensure contact form + continue
+    enforceSatellite(); // keep type = satellite
+    keepOverhead();     // keep tilt/heading = 0
+    lockOverhead();     // prevent tilt/heading changes
+
+    ensureLeftPaneAndForm();   // contact form + required + submit logic
     await setupAutocomplete(); // dropdown + Enter fallback
     ensureToolbar();           // ensure map tools
     setupDrawingTools();       // wire events
 
     say("Ready — start typing or press Enter.");
-    console.log("[OK] map init");
+    console.log("[OK] map init (satellite forced)");
   } catch (e) {
     console.error("[ERR] initMap:", e);
     say("Map failed to initialize. Check console.");
   }
 };
 
-// ---------- BUILD/RESTORE LEFT PANE ----------
+// ---------- KEEP MAP TYPE = SATELLITE ----------
+function enforceSatellite() {
+  const SAT = (google.maps.MapTypeId && google.maps.MapTypeId.SATELLITE) ? google.maps.MapTypeId.SATELLITE : "satellite";
+  try { map.setMapTypeId(SAT); } catch (_) {}
+  map.addListener("maptypeid_changed", () => {
+    const cur = map.getMapTypeId ? map.getMapTypeId() : map.get("mapTypeId");
+    if (cur !== SAT) map.setMapTypeId(SAT);
+  });
+}
+function setSatellite() {
+  const SAT = (google.maps.MapTypeId && google.maps.MapTypeId.SATELLITE) ? google.maps.MapTypeId.SATELLITE : "satellite";
+  if (map.getMapTypeId && map.getMapTypeId() !== SAT) map.setMapTypeId(SAT);
+  keepOverhead();
+}
+
+// ---------- BUILD/RESTORE LEFT PANE + REQUIRED ----------
 function ensureLeftPaneAndForm(){
   const page = document.querySelector(".page");
   if (!page) return;
@@ -73,9 +88,10 @@ function ensureLeftPaneAndForm(){
     searchBox.appendChild(input);
   }
 
-  if (!leftCard.querySelector("#contactForm")) {
-    const form = document.createElement("form");
-    form.id = "contactForm"; form.noValidate = true;
+  let form = leftCard.querySelector("#contactForm");
+  if (!form) {
+    form = document.createElement("form");
+    form.id = "contactForm";
     form.innerHTML = `
       <div class="grid-2" style="margin-top:12px;">
         <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text" autocomplete="given-name"></div>
@@ -104,9 +120,110 @@ function ensureLeftPaneAndForm(){
       <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
       <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
     `;
-    form.addEventListener("submit", (e) => { e.preventDefault(); say("Thanks — we’ll follow up shortly."); });
     leftCard.appendChild(form);
   }
+
+  // REQUIRED + client-side validation wiring
+  enforceRequiredFields(form);
+  setupFormValidation(form);
+}
+
+function enforceRequiredFields(form){
+  const req = (sel, cb) => {
+    const el = form.querySelector(sel);
+    if (!el) return;
+    el.required = true;
+    el.setAttribute("aria-required","true");
+    if (typeof cb === "function") cb(el);
+    ensureErrorSlot(el);
+  };
+
+  req("#firstName");
+  req("#lastName");
+  req("#email"); // type=email handles format
+  req("#phone", (el) => {
+    el.pattern = "[0-9\\-+() .]{7,}";
+    el.title = "Please enter a valid phone number (at least 7 digits).";
+  });
+  req("#referrer");
+  req("#smsConsent", (el) => { el.required = true; });
+}
+
+function setupFormValidation(form){
+  // Remove novalidate to allow native checks
+  form.removeAttribute("novalidate");
+
+  // Recompute button disabled state on input
+  const watch = ["#firstName","#lastName","#email","#phone","#referrer","#smsConsent"];
+  const updateButton = () => {
+    const btn = form.querySelector("#continueBtn");
+    if (!btn) return;
+    btn.disabled = !form.checkValidity();
+  };
+  watch.forEach(sel => {
+    const el = form.querySelector(sel);
+    if (!el) return;
+    el.addEventListener("input", () => { clearError(el); updateButton(); });
+    el.addEventListener("change", () => { clearError(el); updateButton(); });
+  });
+  updateButton();
+
+  // Intercept submit: never navigate; show errors if invalid
+  form.addEventListener("submit", (e) => {
+    e.preventDefault(); // <-- stops refresh
+    if (!form.checkValidity()) {
+      showInlineErrors(form);
+      form.reportValidity(); // also show native bubble
+      say("Please complete the required fields.");
+      return;
+    }
+    // Success path — keep user on page, show confirmation
+    say("Thanks — we’ll follow up shortly.");
+  });
+}
+
+function ensureErrorSlot(el){
+  // Add a <div class="field-hint"> under the field if missing
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  if (!wrap.querySelector(".field-hint")) {
+    const hint = document.createElement("div");
+    hint.className = "field-hint";
+    hint.style.display = "none";
+    wrap.appendChild(hint);
+  }
+}
+function setError(el, msg){
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  const hint = wrap.querySelector(".field-hint");
+  if (!hint) return;
+  hint.textContent = msg || "";
+  hint.style.display = msg ? "block" : "none";
+  el.classList.add("invalid");
+}
+function clearError(el){
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  const hint = wrap.querySelector(".field-hint");
+  if (hint) { hint.textContent = ""; hint.style.display = "none"; }
+  el.classList.remove("invalid");
+}
+function showInlineErrors(form){
+  const f = (sel) => form.querySelector(sel);
+  const firstName = f("#firstName");
+  const lastName  = f("#lastName");
+  const email     = f("#email");
+  const phone     = f("#phone");
+  const referrer  = f("#referrer");
+  const consent   = f("#smsConsent");
+
+  if (firstName && !firstName.checkValidity()) setError(firstName, "First name is required.");
+  if (lastName  && !lastName.checkValidity())  setError(lastName,  "Last name is required.");
+  if (email     && !email.checkValidity())     setError(email,     email.validationMessage || "Enter a valid email.");
+  if (phone     && !phone.checkValidity())     setError(phone,     phone.validationMessage || "Enter a valid phone.");
+  if (referrer  && !referrer.checkValidity())  setError(referrer,  "Please select one option.");
+  if (consent   && !consent.checkValidity())   setError(consent,   "Please check this box to continue.");
 }
 
 // ---------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
@@ -136,8 +253,8 @@ async function setupAutocomplete() {
         try {
           const place = placePrediction.toPlace();
           await place.fetchFields({ fields: ["formattedAddress","location","viewport"] });
-          moveCamera(place.location ?? null, place.viewport ?? null, 19); // tight zoom
-          setSatellite(); // <— switch to satellite on selection
+          moveCamera(place.location ?? null, place.viewport ?? null, 19);
+          setSatellite();
           if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
         } catch (err) { console.warn("[places:new] select error:", err); }
       });
@@ -158,7 +275,7 @@ async function setupAutocomplete() {
     ac.addListener("place_changed", () => {
       const p = ac.getPlace(); if (!p || !p.geometry) return;
       moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-      setSatellite(); // <— switch to satellite on selection
+      setSatellite();
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
     searchControlEl = input;
@@ -181,7 +298,7 @@ function geocode(q) {
       if (status === "OK" && results[0]) {
         const r = results[0];
         moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19);
-        setSatellite(); // <— satellite after Enter search too
+        setSatellite();
         say("Address found — outline lot or measure turf.");
       } else {
         say("Geocode failed — try a full address.");
@@ -191,7 +308,7 @@ function geocode(q) {
   });
 }
 
-/** Tight zoom + overhead (2D). Type is handled separately via setSatellite(). */
+/** Tight zoom + keep overhead (2D). */
 function moveCamera(location, viewport, zoom = 19) {
   if (location) {
     map.setCenter(location);
@@ -208,14 +325,6 @@ function moveCamera(location, viewport, zoom = 19) {
     return;
   }
   keepOverhead();
-}
-
-// ---------- Map type helpers ----------
-function setSatellite() {
-  if (map.getMapTypeId && map.getMapTypeId() !== "satellite") {
-    map.setMapTypeId("satellite");
-  }
-  keepOverhead(); // ensure 2D (tilt 0) even in satellite
 }
 
 // ---------- TOOLBAR (auto-create if missing) ----------
@@ -265,7 +374,10 @@ function setupDrawingTools() {
   bind("btnOutlineLot", startDrawingLot);
   bind("btnManualTurf", startDrawingTurf);
   bind("measureBtn", () => { say("Click around the turf; double-click to finish."); startDrawingTurf(); });
+
+  // REFRESH the whole page on "Search Again"
   bind("btnSearchAgain", forceReload);
+
   bind("btnReset", () => { resetAll(false); });
   bind("btnDelete", deleteLast);
   bind("btnEdit", toggleEdit);
@@ -274,6 +386,16 @@ function setupDrawingTools() {
   bind("btnSave", saveGeoJSON);
 
   console.log("[drawing] toolbar wired");
+}
+
+function forceReload() {
+  try {
+    const url = new URL(location.href);
+    url.searchParams.set("cb", Date.now().toString());
+    location.replace(url.toString());
+  } catch (_) {
+    location.reload();
+  }
 }
 
 function startDrawingLot() {
@@ -401,7 +523,7 @@ function drawParcel(geometry){
 }
 
 // ---------- HELPERS ----------
-function keepOverhead(){ map.setHeading(0); map.setTilt(0); } // <— no mapTypeId here anymore
+function keepOverhead(){ map.setHeading(0); map.setTilt(0); }
 function lockOverhead(){
   map.addListener("tilt_changed",   ()=> map.getTilt()!==0    && map.setTilt(0));
   map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0));
@@ -443,13 +565,4 @@ function extractOuterRing(g){
   if (g.type==="Polygon")      return c?.[0]||null;
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
-}
-function forceReload() {
-  try {
-    const url = new URL(location.href);
-    url.searchParams.set("cb", Date.now().toString()); // cache-buster
-    location.replace(url.toString());
-  } catch (_) {
-    location.reload(); // fallback
-  }
 }
