@@ -247,7 +247,12 @@ async function setupAutocomplete() {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-      host.appendChild(pac); input.style.display = "none"; searchControlEl = pac;
+      host.appendChild(pac);
+input.style.display = "none";
+flattenSearchBox(host);                 // <— add this line
+pac.style.width = "100%";
+pac.style.display = "block";
+searchControlEl = pac;
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
         try {
