@@ -3,7 +3,8 @@
 // --- SET THIS after you deploy to Vercel ---
 // If your frontend stays on GitHub Pages, you must call the Vercel URL explicitly.
 // Example after deploy: 'https://quote-green.vercel.app'
-const API_BASE = 'https://<your-vercel-project>.vercel.app'; // ← replace after deploy
+const API_BASE_URL = ""; // ← leave empty until you have your real https://parcel-api-xxx.vercel.app
+
 // If you later host the frontend on Vercel too, you can set: const API_BASE = '';
 
 let map, marker, parcelPolygon, autocomplete;
