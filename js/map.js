@@ -12,7 +12,6 @@ const redoStack = [];
 // --------- BOOT ----------
 window.initMap = async function initMap() {
   try {
-    // Load libs if supported
     if (google.maps.importLibrary) {
       await google.maps.importLibrary("maps");
       await google.maps.importLibrary("geometry");
@@ -20,7 +19,6 @@ window.initMap = async function initMap() {
       try { await google.maps.importLibrary("places"); } catch (_) {}
     }
 
-    // Map
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 39.8283, lng: -98.5795 },
       zoom: 4,
@@ -63,8 +61,7 @@ async function setupAutocomplete() {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-      // SAFE mount: append (don't replace) then hide input — avoids observer(null) issues
-      host.appendChild(pac);
+      host.appendChild(pac);     // safe mount
       input.style.display = "none";
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
@@ -73,9 +70,7 @@ async function setupAutocomplete() {
           await place.fetchFields({ fields: ["formattedAddress","location","viewport"] });
           moveCamera(place.location, place.viewport);
           if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
-        } catch (err) {
-          console.warn("[places:new] select error:", err);
-        }
+        } catch (err) { console.warn("[places:new] select error:", err); }
       });
 
       console.log("[places] new element ready");
@@ -103,7 +98,6 @@ async function setupAutocomplete() {
     return;
   }
 
-  // Otherwise, Enter-to-geocode only
   console.warn("[places] no dropdown available; using Enter only");
   say("Press Enter to geocode.");
 }
