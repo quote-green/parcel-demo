@@ -8,57 +8,31 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-<div id="proof" style="position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:14px/1.2 monospace">
-  SPLIT 1010
+<div style="position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:12px/1 monospace">
+  SPLIT 1020
 </div>
 
 <main class="page">
-  <section class="card" aria-label="Search and contact">
+  <section class="card" aria-label="Search">
     <div class="search-box">
-      <input id="address" name="address" type="search" placeholder="Search address..." autocomplete="off" required aria-label="Search for an address" />
+      <input id="address" type="search" placeholder="Search address..." autocomplete="off" />
     </div>
 
-    <form id="contactForm" novalidate>
-      <div class="grid-2" style="margin-top:12px;">
-        <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text"></div>
-        <div><label for="lastName">Last Name</label><input id="lastName" name="lastName" type="text"></div>
-      </div>
+    <div class="half-inch-gap pair">
+      <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" type="number" /></div>
+      <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" type="number" /></div>
+    </div>
 
-      <div class="grid-2" style="margin-top:12px;">
-        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" inputmode="tel"></div>
-        <div><label for="email">Email</label><input id="email" name="email" type="email"></div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <label for="referrer">How did you find us?</label>
-        <select id="referrer" name="referrer">
-          <option value="" disabled selected>Select one...</option>
-          <option>Google</option><option>Friend</option><option>Social Media</option><option>Yard Sign / Vehicle</option><option>Other</option>
-        </select>
-      </div>
-
-      <div class="checkbox-row">
-        <input id="smsConsent" name="smsConsent" type="checkbox">
-        <label for="smsConsent">Permission to contact you on this phone number</label>
-      </div>
-
-      <div class="half-inch-gap pair">
-        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
-        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
-      </div>
-
-      <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
-      <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
-    </form>
+    <div class="half-inch-gap"><button id="measureBtn" class="btn btn-primary">Measure Now</button></div>
   </section>
 
   <section class="card map-card" aria-label="Map">
-    <div class="map-box" id="mapBox">
+    <div class="map-box">
       <div id="map"></div>
       <div id="mapCaption">Start typing or press Enter</div>
     </div>
 
-    <nav class="tools" aria-label="Map tools">
+    <nav class="tools">
       <button id="btnManualTurf">Manual Turf Measure</button>
       <button id="btnOutlineLot">Outline Property Boundaries</button>
       <button id="btnEdit">Edit</button>
@@ -72,10 +46,10 @@
   </section>
 </main>
 
-<!-- Load your app code BEFORE the Google callback fires -->
+<!-- Load your app code BEFORE the Google callback runs -->
 <script src="js/map.js?v=6"></script>
 
-<!-- Google Maps (PUT YOUR REAL KEY) -->
+<!-- Google Maps (PUT YOUR REAL KEY; keep places for dropdown) -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async" async defer></script>
 </body>
 </html>
