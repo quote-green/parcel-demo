@@ -1,33 +1,23 @@
-<!-- ===================== index.html (clean) ===================== -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Search + Measure</title>
-
-  <!-- Tiny transparent favicon so the browser stops requesting /favicon.ico -->
+  <!-- tiny transparent favicon to silence 404 -->
   <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">
-
-  <!-- Your stylesheet (optional; page will still work without it) -->
-  <link rel="stylesheet" href="css/styles.css" />
-
   <style>
-    :root{--gap:24px;--green:#22c55e;--green-dark:#16a34a;--border:#e5e7eb;--text:#0f172a;--bg:#f8fafc;--white:#fff;--shadow:0 8px 24px rgba(0,0,0,.08);--radius:16px}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .page{max-width:1400px;margin:40px auto;padding:0 20px;display:grid;grid-template-columns:1fr 1.5fr;gap:var(--gap)}
-    @media (max-width:900px){.page{grid-template-columns:1fr}}
+    :root{--gap:24px;--green:#22c55e;--green-dark:#16a34a;--border:#e5e7eb;--text:#0f172a;--muted:#64748b;--bg:#f8fafc;--white:#fff;--shadow:0 8px 24px rgba(0,0,0,.08);--radius:16px}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .page{max-width:1400px;margin:40px auto;padding:0 20px;display:grid;grid-template-columns:1fr 1.5fr;gap:var(--gap)} @media (max-width:900px){.page{grid-template-columns:1fr}}
     .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
     .search-box{position:relative;display:flex;align-items:center;gap:10px;border:2px solid #1f2937;border-radius:999px;padding:10px 14px;background:#e5e7eb}
     .search-box input[type="search"]{flex:1;border:none;outline:none;font-size:16px;background:transparent;color:#111827}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    label{font-size:13px;color:#64748b;display:block;margin-bottom:6px}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
     input[type=text],input[type=email],input[type=tel],input[type=number],select{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:var(--white)}
-    .checkbox-row{display:flex;align-items:center;gap:10px;margin-top:8px}
-    .checkbox-row input[type=checkbox]{width:18px;height:18px}
-    .half-inch-gap{margin-top:0.5in}
-    .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .checkbox-row{display:flex;align-items:center;gap:10px;margin-top:8px}.checkbox-row input[type=checkbox]{width:18px;height:18px}
+    .half-inch-gap{margin-top:0.5in}.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .btn{width:100%;padding:14px 16px;border:0;border-radius:12px;font-weight:600;font-size:16px;cursor:pointer}
     .btn-primary{background:var(--green);color:#fff}.btn-primary:hover{background:var(--green-dark)}
     .btn-secondary{background:var(--green);color:#fff}.btn-secondary:hover{background:var(--green-dark)}
@@ -52,55 +42,25 @@
 
     <form id="contactForm" novalidate>
       <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="firstName">First Name</label>
-          <input id="firstName" name="firstName" type="text" required autocomplete="given-name">
-        </div>
-        <div>
-          <label for="lastName">Last Name</label>
-          <input id="lastName" name="lastName" type="text" required autocomplete="family-name">
-        </div>
+        <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text" autocomplete="given-name"></div>
+        <div><label for="lastName">Last Name</label><input id="lastName" name="lastName" type="text" autocomplete="family-name"></div>
       </div>
-
       <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="phone">Phone</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" required autocomplete="tel">
-        </div>
-        <div>
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" required autocomplete="email">
-        </div>
+        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
+        <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email"></div>
       </div>
-
       <div style="margin-top:12px;">
         <label for="referrer">How did you find us?</label>
-        <select id="referrer" name="referrer" required>
+        <select id="referrer" name="referrer">
           <option value="" disabled selected>Select one...</option>
-          <option>Google</option>
-          <option>Friend</option>
-          <option>Social Media</option>
-          <option>Yard Sign / Vehicle</option>
-          <option>Other</option>
+          <option>Google</option><option>Friend</option><option>Social Media</option><option>Yard Sign / Vehicle</option><option>Other</option>
         </select>
       </div>
-
-      <div class="checkbox-row">
-        <input id="smsConsent" name="smsConsent" type="checkbox" required>
-        <label for="smsConsent">Permission to contact you on this phone number</label>
-      </div>
-
+      <div class="checkbox-row"><input id="smsConsent" name="smsConsent" type="checkbox"><label for="smsConsent">Permission to contact you on this phone number</label></div>
       <div class="half-inch-gap pair">
-        <div>
-          <label for="lotSqft">Lot sq ft</label>
-          <input id="lotSqft" name="lotSqft" type="number" min="0" step="1">
-        </div>
-        <div>
-          <label for="turfSqft">Turf sq ft</label>
-          <input id="turfSqft" name="turfSqft" type="number" min="0" step="1">
-        </div>
+        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
+        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
       </div>
-
       <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
       <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
     </form>
@@ -109,10 +69,9 @@
   <section class="card map-card" aria-label="Map">
     <div class="map-box" id="mapBox">
       <div id="map"></div>
-      <div id="mapCaption">Type an address and press Enter</div>
+      <div id="mapCaption">BUILD v1 inline — type an address and press Enter</div>
     </div>
 
-    <!-- Tools -->
     <nav class="tools" aria-label="Map tools">
       <button id="btnManualTurf">Manual Turf Measure</button>
       <button id="btnOutlineLot">Outline Property Boundaries</button>
@@ -127,267 +86,115 @@
   </section>
 </main>
 
-<!-- Your app code (must load before Google callback fires) -->
-<script src="js/map.js?v=8"></script>
+<!-- Inline app (so you don't need js/map.js at all) -->
+<script>
+const API_BASE_URL = ""; // optional later
 
-<!-- Google Maps (paste your real key where it says YOUR_KEY) -->
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async"
-  async defer></script>
-</body>
-</html>
+let map, drawManager, lotPolygon=null; const turfPolys=[];
 
-
-<!-- ===================== js/map.js (complete) ===================== -->
-<script type="text/plain" data-filename="js/map.js">
-// js/map.js
-
-// Optional: set this after you deploy your Vercel API (e.g., "https://parcel-api-yourname.vercel.app")
-const API_BASE_URL = ""; // leave empty for now
-
-// Globals
-let map, drawManager;
-let lotPolygon = null;
-const turfPolygons = [];
-
-// Google calls this via callback=initMap in the loader tag
-window.initMap = function initMap() {
+window.initMap = function initMap(){
   map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat: 39.8283, lng: -98.5795 },
-    zoom: 4,
-    mapTypeId: "roadmap",
-    tilt: 0,
-    heading: 0,
+    center:{lat:39.8283,lng:-98.5795}, zoom:4, mapTypeId:"roadmap", tilt:0, heading:0
   });
-
-  keepOverhead();
-  lockOverhead();
-
-  setupAutocomplete();
-  setupDrawingTools();
-  say("Type an address and press Enter, or use the tools on the right.");
+  keepOverhead(); lockOverhead();
+  setupAutocomplete(); setupDrawingTools();
+  say("Ready — search or draw.");
 };
 
-// ---------------- Autocomplete (new → legacy → Enter) ----------------
-async function setupAutocomplete() {
-  const host = document.querySelector(".search-box");
-  const input = document.getElementById("address");
-  if (!host || !input) return;
-
-  // Always keep Enter-to-geocode working
-  input.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const q = (input.value || "").trim();
-      if (q) {
-        say("Searching…");
-        await fallbackGeocode(q);
-      }
-    }
+async function setupAutocomplete(){
+  const host=document.querySelector(".search-box"); const input=document.getElementById("address"); if(!host||!input) return;
+  input.addEventListener("keydown", async e=>{
+    if(e.key==="Enter"){ e.preventDefault(); const q=(input.value||"").trim(); if(q) await geocode(q); }
   });
-
-  // Try new Places widget (for new keys)
-  try { await google.maps.importLibrary?.("places"); } catch(_) {}
-  const hasNew = !!(google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places);
-  if (hasNew) {
-    try {
+  try{ await google.maps.importLibrary?.("places"); }catch(_){}
+  const hasNew=!!(google?.maps?.places&&"PlaceAutocompleteElement" in google.maps.places);
+  if(hasNew){
+    try{
       // @ts-ignore
-      const pac = new google.maps.places.PlaceAutocompleteElement();
-      pac.placeholder = input.placeholder || "Search address...";
-      pac.style.width = "100%";
-      host.replaceChild(pac, input);
-
+      const pac=new google.maps.places.PlaceAutocompleteElement(); pac.placeholder=input.placeholder||"Search address..."; pac.style.width="100%"; host.replaceChild(pac,input);
       // @ts-ignore
-      pac.addEventListener("gmp-select", async ({ placePrediction }) => {
-        const place = placePrediction.toPlace();
-        await place.fetchFields({ fields: ["formattedAddress", "location", "viewport"] });
-        moveCameraToPlace(place);
-        if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
+      pac.addEventListener("gmp-select", async ({placePrediction})=>{
+        const place=placePrediction.toPlace(); await place.fetchFields({fields:["formattedAddress","location","viewport"]});
+        moveTo(place.location, place.viewport);
+        if(API_BASE_URL && place.formattedAddress) tryParcel(place.formattedAddress);
       });
-
-      say("Search ready (new Places).");
       return;
-    } catch (e) {
-      console.warn("New Places widget failed, falling back:", e);
-    }
+    }catch(e){ console.warn("new places failed; legacy/fallback", e); }
   }
-
-  // Legacy Autocomplete
-  if (google?.maps?.places?.Autocomplete) {
-    const ac = new google.maps.places.Autocomplete(input, {
-      types: ["address"],
-      fields: ["formatted_address", "geometry"],
+  if(google?.maps?.places?.Autocomplete){
+    const ac=new google.maps.places.Autocomplete(input,{types:["address"],fields:["formatted_address","geometry"]});
+    ac.addListener("place_changed", async ()=>{
+      const p=ac.getPlace(); if(!p||!p.geometry) return;
+      moveTo(p.geometry.location, p.geometry.viewport);
+      if(API_BASE_URL && p.formatted_address) tryParcel(p.formatted_address);
     });
-    ac.addListener("place_changed", async () => {
-      const p = ac.getPlace();
-      if (!p || !p.geometry) return;
-      moveCameraToLegacyPlace(p);
-      if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
-    });
-    say("Search ready (legacy Places).");
-    return;
   }
-
-  // If neither widget is available, Enter-to-geocode still works
-  say("Search ready (press Enter to geocode).");
 }
 
-function moveCameraToPlace(place) {
-  if (place.viewport) map.fitBounds(place.viewport);
-  else if (place.location) { map.setCenter(place.location); map.setZoom(18); }
-  keepOverhead();
-  say("Address found. Outline the lot or measure turf.");
+function moveTo(location, viewport){
+  if(viewport) map.fitBounds(viewport); else if(location){ map.setCenter(location); map.setZoom(18); }
+  keepOverhead(); say("Address found — outline the lot or measure turf.");
 }
 
-function moveCameraToLegacyPlace(p) {
-  const loc = p.geometry.location;
-  if (p.geometry.viewport) map.fitBounds(p.geometry.viewport);
-  else if (loc) { map.setCenter(loc); map.setZoom(18); }
-  keepOverhead();
-  say("Address found. Outline the lot or measure turf.");
+async function geocode(q){
+  const g=new google.maps.Geocoder();
+  return new Promise(res=>g.geocode({address:q},(r,s)=>{
+    if(s==="OK"&&r[0]){ moveTo(r[0].geometry.location, r[0].geometry.viewport); say("Address found — outline the lot or measure turf.");}
+    else say("Geocode failed — try a full address.");
+    res();
+  }));
 }
 
-async function fallbackGeocode(query) {
-  const geocoder = new google.maps.Geocoder();
-  return new Promise((resolve) => {
-    geocoder.geocode({ address: query }, (results, status) => {
-      if (status === "OK" && results[0]) {
-        const r = results[0];
-        if (r.geometry?.viewport) map.fitBounds(r.geometry.viewport);
-        else if (r.geometry?.location) { map.setCenter(r.geometry.location); map.setZoom(18); }
-        keepOverhead();
-        say("Address found. Outline the lot or measure turf.");
-      } else {
-        say("Geocode failed — try a full address.");
-      }
-      resolve();
-    });
-  });
-}
-
-// ---------------- Drawing tools + area updates ----------------
-function setupDrawingTools() {
-  drawManager = new google.maps.drawing.DrawingManager({
-    drawingControl: false,
-    polygonOptions: { fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 },
-  });
+function setupDrawingTools(){
+  drawManager=new google.maps.drawing.DrawingManager({ drawingControl:false, polygonOptions:{fillColor:"#22c55e55",strokeColor:"#16a34a",strokeWeight:2} });
   drawManager.setMap(map);
-
-  byId("btnOutlineLot")?.addEventListener("click", startDrawingLot);
-  byId("btnManualTurf")?.addEventListener("click", startDrawingTurf);
-  byId("measureBtn")?.addEventListener("click", () => {
-    say("Click around the turf area. Double-click to finish.");
-    startDrawingTurf();
-  });
-  byId("btnSearchAgain")?.addEventListener("click", resetAll);
+  on("btnOutlineLot", startLot); on("btnManualTurf", startTurf); on("measureBtn", ()=>{ say("Click around turf; double-click to finish."); startTurf();}); on("btnSearchAgain", resetAll);
 }
-
-function startDrawingLot() {
+function startLot(){
   drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-  google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
-    if (lotPolygon) lotPolygon.setMap(null);
-    lotPolygon = poly;
-    lotPolygon.setOptions({ fillColor: "#00000000", strokeColor: "#ef4444", strokeWeight: 2 });
-    drawManager.setDrawingMode(null);
-    fitToPolygon(lotPolygon);
-    updateAreas();
-    say("Lot outlined. Now add turf polygons.");
+  google.maps.event.addListenerOnce(drawManager,"polygoncomplete",poly=>{
+    if(lotPolygon) lotPolygon.setMap(null); lotPolygon=poly;
+    poly.setOptions({fillColor:"#00000000",strokeColor:"#ef4444",strokeWeight:2});
+    drawManager.setDrawingMode(null); fit(poly); updateAreas(); say("Lot outlined — add turf polygons.");
   });
 }
-
-function startDrawingTurf() {
+function startTurf(){
   drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-  google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
-    poly.setOptions({ fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 });
-    turfPolygons.push(poly);
-    drawManager.setDrawingMode(null);
-    updateAreas();
+  google.maps.event.addListenerOnce(drawManager,"polygoncomplete",poly=>{
+    poly.setOptions({fillColor:"#22c55e55",strokeColor:"#16a34a",strokeWeight:2}); turfPolys.push(poly);
+    drawManager.setDrawingMode(null); updateAreas();
   });
 }
-
-function updateAreas() {
-  const areaM2 = (poly) => google.maps.geometry.spherical.computeArea(poly.getPath());
-  const lot = lotPolygon ? areaM2(lotPolygon) * 10.7639 : 0;
-  const turf = turfPolygons.reduce((s, p) => s + areaM2(p) * 10.7639, 0);
-  if (byId("lotSqft")) byId("lotSqft").value = Math.round(lot);
-  if (byId("turfSqft")) byId("turfSqft").value = Math.round(turf);
+function updateAreas(){
+  const m2=p=>google.maps.geometry.spherical.computeArea(p.getPath()); const lot=lotPolygon?m2(lotPolygon)*10.7639:0; const turf=turfPolys.reduce((s,p)=>s+m2(p)*10.7639,0);
+  setVal("lotSqft",Math.round(lot)); setVal("turfSqft",Math.round(turf));
 }
+function fit(poly){ const b=new google.maps.LatLngBounds(); poly.getPath().forEach(p=>b.extend(p)); map.fitBounds(b); keepOverhead(); }
+function resetAll(){ if(lotPolygon){lotPolygon.setMap(null); lotPolygon=null;} while(turfPolys.length) turfPolys.pop().setMap(null); ["lotSqft","turfSqft","firstName","lastName","phone","email"].forEach(id=>setVal(id,"")); say("Reset — search again."); }
 
-function fitToPolygon(poly) {
-  const b = new google.maps.LatLngBounds();
-  poly.getPath().forEach((p) => b.extend(p));
-  map.fitBounds(b);
-  keepOverhead();
+async function tryParcel(addr){
+  try{ const url=`${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(addr)}`; const r=await fetch(url); if(!r.ok) throw new Error(`API ${r.status}`); const d=await r.json(); const gj=normGJ(d); const g=firstPoly(gj); if(g) drawParcel(g);}catch(e){console.warn("parcel fetch failed:", e?.message||e);}
 }
-
-function resetAll() {
-  if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
-  while (turfPolygons.length) turfPolygons.pop().setMap(null);
-  ["lotSqft","turfSqft","firstName","lastName","phone","email"].forEach((id) => {
-    const el = byId(id); if (el) el.value = "";
-  });
-  say("Type an address and press Enter.");
+function drawParcel(geom){
+  if(lotPolygon) lotPolygon.setMap(null);
+  const ring = outerRing(geom); if(!ring||!ring.length) return;
+  const path = ring.map(([lng,lat])=>({lat,lng}));
+  lotPolygon = new google.maps.Polygon({paths:path,map,strokeColor:"#ef4444",strokeWeight:2,fillOpacity:0});
+  fit(lotPolygon); updateAreas(); say("Parcel drawn — add turf polygons.");
 }
 
-// ---------------- Optional parcel fetch/draw ----------------
-async function tryDrawParcel(formattedAddress) {
-  if (!API_BASE_URL) { console.warn("Parcel fetch skipped: API_BASE_URL not set"); return; }
-  try {
-    const url = API_BASE_URL + "/api/parcel-by-address?address=" + encodeURIComponent(formattedAddress);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("API " + res.status);
-    const data = await res.json();
-    const gj = normalizePreciselyToGeoJSON(data);
-    const poly = pickFirstPolygon(gj);
-    if (poly) drawParcel(poly);
-  } catch (e) {
-    console.warn("Parcel fetch failed:", e && e.message ? e.message : e);
-  }
-}
-
-function drawParcel(geometry) {
-  if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
-  const ring = extractOuterRing(geometry);
-  if (!ring || !ring.length) return;
-  const path = ring.map(([lng, lat]) => ({ lat, lng }));
-  lotPolygon = new google.maps.Polygon({
-    paths: path,
-    map,
-    strokeColor: "#ef4444",
-    strokeWeight: 2,
-    fillOpacity: 0,
-  });
-  fitToPolygon(lotPolygon);
-  updateAreas();
-  say("Parcel drawn. You can add turf polygons now.");
-}
-
-// GeoJSON helpers
-function normalizePreciselyToGeoJSON(payload) {
-  if (payload?.type === "FeatureCollection" || payload?.type === "Feature") return payload;
-  if (Array.isArray(payload?.features)) return { type: "FeatureCollection", features: payload.features };
-  if (payload?.geometry?.type && payload?.geometry?.coordinates) {
-    return { type: "Feature", geometry: payload.geometry, properties: payload.properties || {} };
-  }
-  return { type: "FeatureCollection", features: [] };
-}
-function pickFirstPolygon(gj) {
-  const feats = gj?.type === "FeatureCollection" ? gj.features : [gj];
-  const f = (feats || []).find((x) => x?.geometry?.type?.includes("Polygon"));
-  return f ? f.geometry : null;
-}
-function extractOuterRing(geometry) {
-  if (!geometry || !geometry.coordinates) return null;
-  const c = geometry.coordinates;
-  if (geometry.type === "MultiPolygon") return c?.[0]?.[0] || null;
-  if (geometry.type === "Polygon") return c?.[0] || null;
-  if (Array.isArray(c?.[0]) && typeof c[0][0] === "number") return c;
-  return null;
-}
-
-// Camera & DOM helpers
-function keepOverhead(){ if (!map) return; map.setMapTypeId("roadmap"); map.setHeading(0); map.setTilt(0); }
-function lockOverhead(){ map.addListener("tilt_changed",()=> map.getTilt()!==0 && map.setTilt(0)); map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0)); }
-function byId(id){ return document.getElementById(id); }
-function say(msg){ const el = byId("mapCaption"); if (el) el.textContent = msg; }
+// helpers
+function keepOverhead(){ map.setMapTypeId("roadmap"); map.setHeading(0); map.setTilt(0); }
+function lockOverhead(){ map.addListener("tilt_changed",()=>map.getTilt()!==0&&map.setTilt(0)); map.addListener("heading_changed",()=>map.getHeading()!==0&&map.setHeading(0)); }
+function on(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener("click",fn); }
+function setVal(id,v){ const el=document.getElementById(id); if(el) el.value=v; }
+function say(t){ const el=document.getElementById("mapCaption"); if(el) el.textContent=t; }
+function normGJ(p){ if(p?.type==="FeatureCollection"||p?.type==="Feature") return p; if(Array.isArray(p?.features)) return {type:"FeatureCollection",features:p.features}; if(p?.geometry?.type&&p?.geometry?.coordinates) return {type:"Feature",geometry:p.geometry,properties:p.properties||{}}; return {type:"FeatureCollection",features:[]}; }
+function firstPoly(gj){ const fs=gj?.type==="FeatureCollection"?gj.features:[gj]; const f=(fs||[]).find(x=>x?.geometry?.type?.includes("Polygon")); return f?f.geometry:null; }
+function outerRing(g){ if(!g||!g.coordinates) return null; const c=g.coordinates; if(g.type==="MultiPolygon") return c?.[0]?.[0]||null; if(g.type==="Polygon") return c?.[0]||null; if(Array.isArray(c?.[0])&&typeof c[0][0]==="number") return c; return null; }
 </script>
+
+<!-- Google Maps (replace YOUR_KEY; keep callback=initMap) -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&libraries=places,drawing,geometry&callback=initMap&loading=async" async defer></script>
+</body>
+</html>
