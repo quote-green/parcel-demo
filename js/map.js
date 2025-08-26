@@ -1,6 +1,4 @@
-
-// js/map.js  (SAFE COMPACT v5 — satellite after selection + tight zoom + contact/tools)
-// Works even if index.html is still SPLIT 1030.
+// js/map.js  (SAFE COMPACT v7 — required fields + satellite + tight zoom + tools)
 
 const API_BASE_URL = ""; // optional parcel API later
 
@@ -21,30 +19,48 @@ window.initMap = async function initMap() {
       try { await google.maps.importLibrary("places"); } catch (_) {}
     }
 
+    // Start in SATELLITE
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 39.8283, lng: -98.5795 },
       zoom: 4,
-      mapTypeId: "roadmap", // initial; will switch to satellite on selection
+      mapTypeId: "satellite",
       tilt: 0,
       heading: 0
     });
-    keepOverhead();   // (now only tilt/heading)
-    lockOverhead();   // prevent tilt/heading changes
 
-    ensureLeftPaneAndForm();   // ensure contact form + continue
+    enforceSatellite(); // keep type = satellite
+    keepOverhead();     // keep tilt/heading = 0
+    lockOverhead();     // prevent tilt/heading changes
+
+    ensureLeftPaneAndForm();   // contact form + required + submit logic
     await setupAutocomplete(); // dropdown + Enter fallback
     ensureToolbar();           // ensure map tools
     setupDrawingTools();       // wire events
 
     say("Ready — start typing or press Enter.");
-    console.log("[OK] map init");
+    console.log("[OK] map init (satellite forced)");
   } catch (e) {
     console.error("[ERR] initMap:", e);
     say("Map failed to initialize. Check console.");
   }
 };
 
-// ---------- BUILD/RESTORE LEFT PANE ----------
+// ---------- KEEP MAP TYPE = SATELLITE ----------
+function enforceSatellite() {
+  const SAT = (google.maps.MapTypeId && google.maps.MapTypeId.SATELLITE) ? google.maps.MapTypeId.SATELLITE : "satellite";
+  try { map.setMapTypeId(SAT); } catch (_) {}
+  map.addListener("maptypeid_changed", () => {
+    const cur = map.getMapTypeId ? map.getMapTypeId() : map.get("mapTypeId");
+    if (cur !== SAT) map.setMapTypeId(SAT);
+  });
+}
+function setSatellite() {
+  const SAT = (google.maps.MapTypeId && google.maps.MapTypeId.SATELLITE) ? google.maps.MapTypeId.SATELLITE : "satellite";
+  if (map.getMapTypeId && map.getMapTypeId() !== SAT) map.setMapTypeId(SAT);
+  keepOverhead();
+}
+
+// ---------- BUILD/RESTORE LEFT PANE + REQUIRED ----------
 function ensureLeftPaneAndForm(){
   const page = document.querySelector(".page");
   if (!page) return;
@@ -71,8 +87,9 @@ function ensureLeftPaneAndForm(){
     searchBox.appendChild(input);
   }
 
-  if (!leftCard.querySelector("#contactForm")) {
-    const form = document.createElement("form");
+  let form = leftCard.querySelector("#contactForm");
+  if (!form) {
+    form = document.createElement("form");
     form.id = "contactForm"; form.noValidate = true;
     form.innerHTML = `
       <div class="grid-2" style="margin-top:12px;">
@@ -102,9 +119,46 @@ function ensureLeftPaneAndForm(){
       <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
       <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
     `;
-    form.addEventListener("submit", (e) => { e.preventDefault(); say("Thanks — we’ll follow up shortly."); });
     leftCard.appendChild(form);
   }
+
+  // Enforce "required" on the needed fields (and a phone pattern)
+  enforceRequiredFields(form);
+
+  // Handle submit: block when invalid, show native messages, scroll to first invalid
+  form.addEventListener("submit", (e) => {
+    const f = e.currentTarget;
+    if (!f.checkValidity()) {
+      e.preventDefault();
+      f.reportValidity();
+      const firstBad = f.querySelector(":invalid");
+      if (firstBad) firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
+      say("Please complete the required fields.");
+      return;
+    }
+    e.preventDefault(); // prevent navigation for now; replace with your own submit later
+    say("Thanks — we’ll follow up shortly.");
+  });
+}
+
+function enforceRequiredFields(form){
+  const req = (sel, cb) => {
+    const el = form.querySelector(sel);
+    if (!el) return;
+    el.required = true;
+    el.setAttribute("aria-required","true");
+    if (typeof cb === "function") cb(el);
+  };
+
+  req("#firstName");
+  req("#lastName");
+  req("#email"); // type="email" gives native validation
+  req("#phone", (el) => {
+    el.pattern = "[0-9\\-+() .]{7,}";
+    el.title = "Please enter a valid phone number (at least 7 digits).";
+  });
+  req("#referrer");
+  req("#smsConsent", (el) => { el.required = true; }); // checkbox must be checked
 }
 
 // ---------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
@@ -134,8 +188,8 @@ async function setupAutocomplete() {
         try {
           const place = placePrediction.toPlace();
           await place.fetchFields({ fields: ["formattedAddress","location","viewport"] });
-          moveCamera(place.location ?? null, place.viewport ?? null, 19); // tight zoom
-          setSatellite(); // <— switch to satellite on selection
+          moveCamera(place.location ?? null, place.viewport ?? null, 19);
+          setSatellite();
           if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
         } catch (err) { console.warn("[places:new] select error:", err); }
       });
@@ -156,7 +210,7 @@ async function setupAutocomplete() {
     ac.addListener("place_changed", () => {
       const p = ac.getPlace(); if (!p || !p.geometry) return;
       moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-      setSatellite(); // <— switch to satellite on selection
+      setSatellite();
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
     searchControlEl = input;
@@ -179,7 +233,7 @@ function geocode(q) {
       if (status === "OK" && results[0]) {
         const r = results[0];
         moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19);
-        setSatellite(); // <— satellite after Enter search too
+        setSatellite();
         say("Address found — outline lot or measure turf.");
       } else {
         say("Geocode failed — try a full address.");
@@ -189,7 +243,7 @@ function geocode(q) {
   });
 }
 
-/** Tight zoom + overhead (2D). Type is handled separately via setSatellite(). */
+/** Tight zoom + keep overhead (2D). */
 function moveCamera(location, viewport, zoom = 19) {
   if (location) {
     map.setCenter(location);
@@ -206,14 +260,6 @@ function moveCamera(location, viewport, zoom = 19) {
     return;
   }
   keepOverhead();
-}
-
-// ---------- Map type helpers ----------
-function setSatellite() {
-  if (map.getMapTypeId && map.getMapTypeId() !== "satellite") {
-    map.setMapTypeId("satellite");
-  }
-  keepOverhead(); // ensure 2D (tilt 0) even in satellite
 }
 
 // ---------- TOOLBAR (auto-create if missing) ----------
@@ -263,7 +309,10 @@ function setupDrawingTools() {
   bind("btnOutlineLot", startDrawingLot);
   bind("btnManualTurf", startDrawingTurf);
   bind("measureBtn", () => { say("Click around the turf; double-click to finish."); startDrawingTurf(); });
+
+  // REFRESH the whole page on "Search Again" (cache-buster)
   bind("btnSearchAgain", forceReload);
+
   bind("btnReset", () => { resetAll(false); });
   bind("btnDelete", deleteLast);
   bind("btnEdit", toggleEdit);
@@ -272,6 +321,16 @@ function setupDrawingTools() {
   bind("btnSave", saveGeoJSON);
 
   console.log("[drawing] toolbar wired");
+}
+
+function forceReload() {
+  try {
+    const url = new URL(location.href);
+    url.searchParams.set("cb", Date.now().toString());
+    location.replace(url.toString());
+  } catch (_) {
+    location.reload();
+  }
 }
 
 function startDrawingLot() {
@@ -399,7 +458,7 @@ function drawParcel(geometry){
 }
 
 // ---------- HELPERS ----------
-function keepOverhead(){ map.setHeading(0); map.setTilt(0); } // <— no mapTypeId here anymore
+function keepOverhead(){ map.setHeading(0); map.setTilt(0); }
 function lockOverhead(){
   map.addListener("tilt_changed",   ()=> map.getTilt()!==0    && map.setTilt(0));
   map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0));
@@ -442,13 +501,3 @@ function extractOuterRing(g){
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
 }
-function forceReload() {
-  try {
-    const url = new URL(location.href);
-    url.searchParams.set("cb", Date.now().toString()); // cache-buster
-    location.replace(url.toString());
-  } catch (_) {
-    location.reload(); // fallback
-  }
-}
-
