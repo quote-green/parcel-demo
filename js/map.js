@@ -1,5 +1,5 @@
-// js/map.js  (SAFE COMPACT v3 — auto-creates toolbar if missing + tight zoom)
-// Dropdown (new Places -> legacy), Enter-to-geocode, drawing tools, overhead lock.
+// js/map.js  (SAFE COMPACT v4 — auto-add contact form + Continue; tight zoom; tools)
+// Works even if index.html is still SPLIT 1020.
 
 const API_BASE_URL = ""; // optional parcel API later
 
@@ -8,7 +8,7 @@ let lotPolygon = null;
 const turfPolys = [];
 const undoStack = [];
 const redoStack = [];
-let searchControlEl = null; // <gmp-place-autocomplete> or the <input id="address">
+let searchControlEl = null; // <gmp-place-autocomplete> or <input id="address">
 
 // ---------- BOOT ----------
 window.initMap = async function initMap() {
@@ -30,8 +30,9 @@ window.initMap = async function initMap() {
     keepOverhead();
     lockOverhead();
 
+    ensureLeftPaneAndForm();   // <— add contact fields + Continue if missing
     await setupAutocomplete(); // dropdown + Enter fallback
-    ensureToolbar();           // <— create buttons if HTML didn't include them
+    ensureToolbar();           // <— add tools if missing
     setupDrawingTools();       // wire events
 
     say("Ready — start typing or press Enter.");
@@ -41,6 +42,126 @@ window.initMap = async function initMap() {
     say("Map failed to initialize. Check console.");
   }
 };
+
+// ---------- BUILD/RESTORE LEFT PANE ----------
+function ensureLeftPaneAndForm(){
+  const page = document.querySelector(".page");
+  if (!page) return;
+
+  // Find or create the left card
+  let leftCard = [...page.querySelectorAll(".card")].find(c => c.querySelector(".search-box"));
+  if (!leftCard) {
+    leftCard = document.createElement("section");
+    leftCard.className = "card";
+    leftCard.innerHTML = `<div class="search-box"></div>`;
+    page.insertBefore(leftCard, page.firstChild);
+  }
+
+  // Ensure search-box + #address
+  let searchBox = leftCard.querySelector(".search-box");
+  if (!searchBox) {
+    searchBox = document.createElement("div");
+    searchBox.className = "search-box";
+    leftCard.prepend(searchBox);
+  }
+  if (!leftCard.querySelector("#address")) {
+    const input = document.createElement("input");
+    input.id = "address";
+    input.name = "address";
+    input.type = "search";
+    input.placeholder = "Search address...";
+    input.autocomplete = "off";
+    input.setAttribute("aria-label","Search for an address");
+    searchBox.appendChild(input);
+  }
+
+  // Ensure contact form
+  if (!leftCard.querySelector("#contactForm")) {
+    const form = document.createElement("form");
+    form.id = "contactForm";
+    form.noValidate = true;
+    form.innerHTML = `
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <label for="firstName">First Name</label>
+          <input id="firstName" name="firstName" type="text" autocomplete="given-name">
+        </div>
+        <div>
+          <label for="lastName">Last Name</label>
+          <input id="lastName" name="lastName" type="text" autocomplete="family-name">
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
+        </div>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email">
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <label for="referrer">How did you find us?</label>
+        <select id="referrer" name="referrer">
+          <option value="" disabled selected>Select one...</option>
+          <option>Google</option><option>Friend</option><option>Social Media</option>
+          <option>Yard Sign / Vehicle</option><option>Other</option>
+        </select>
+      </div>
+
+      <div class="checkbox-row">
+        <input id="smsConsent" name="smsConsent" type="checkbox">
+        <label for="smsConsent">Permission to contact you on this phone number</label>
+      </div>
+
+      <div class="half-inch-gap pair">
+        <div>
+          <label for="lotSqft">Lot sq ft</label>
+          <input id="lotSqft" name="lotSqft" type="number" min="0" step="1">
+        </div>
+        <div>
+          <label for="turfSqft">Turf sq ft</label>
+          <input id="turfSqft" name="turfSqft" type="number" min="0" step="1">
+        </div>
+      </div>
+
+      <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
+      <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
+    `;
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      say("Thanks — we’ll follow up shortly.");
+    });
+    leftCard.appendChild(form);
+  } else {
+    // If form exists, ensure Lot/Turf + buttons exist
+    const ensure = (id, mk) => { if (!leftCard.querySelector("#"+id)) leftCard.querySelector("#contactForm").appendChild(mk()); };
+    ensure("lotSqft", ()=> {
+      const wrap = document.createElement("div");
+      wrap.className="half-inch-gap pair";
+      wrap.innerHTML = `
+        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
+        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
+      `;
+      return wrap;
+    });
+    if (!leftCard.querySelector("#measureBtn")) {
+      const d = document.createElement("div");
+      d.className="half-inch-gap";
+      d.innerHTML = `<button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button>`;
+      leftCard.querySelector("#contactForm").appendChild(d);
+    }
+    if (!leftCard.querySelector("#continueBtn")) {
+      const d = document.createElement("div");
+      d.className="half-inch-gap";
+      d.innerHTML = `<button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button>`;
+      leftCard.querySelector("#contactForm").appendChild(d);
+    }
+  }
+}
 
 // ---------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
 async function setupAutocomplete() {
@@ -153,7 +274,6 @@ function ensureToolbar() {
   tools = document.createElement("nav");
   tools.className = "tools";
   tools.setAttribute("aria-label", "Map tools");
-  // Minimal inline style so it shows even if CSS isn't loaded
   tools.style.cssText = "width:84px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:14px;background:#f9f9f9;display:flex;flex-direction:column;gap:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.08);height:fit-content;margin-left:10px;";
   tools.innerHTML = `
     <button id="btnManualTurf">Manual Turf Measure</button>
@@ -166,7 +286,6 @@ function ensureToolbar() {
     <button id="btnSave">Save</button>
     <button id="btnSearchAgain" title="Start a new search">Search Again</button>
   `;
-  // Basic button styling
   tools.querySelectorAll("button").forEach((b) => {
     b.style.cssText = "width:100%;padding:10px 8px;font-size:13px;background:#fff;border:1px solid #ccc;border-radius:8px;cursor:pointer;";
     b.addEventListener("mouseover", () => (b.style.background = "#eee"));
@@ -361,7 +480,7 @@ function polygonFromPath(lnglat, opts){ const path=lnglat.map(([lng,lat])=>({lat
 function normalizePreciselyToGeoJSON(p){
   if (p?.type==="FeatureCollection"||p?.type==="Feature") return p;
   if (Array.isArray(p?.features)) return {type:"FeatureCollection",features:p.features};
-  if (p?.geometry?.type && p?.geometry?.coordinates) return {type:"Feature",geometry:p.geometry,properties:p.properties||{}};
+  if (p?.geometry?.type && p?.geometry?.coordinates) return { type:"Feature", geometry:p.geometry, properties:p.properties||{} };
   return {type:"FeatureCollection",features:[]};
 }
 function pickFirstPolygon(gj){ const fs=gj?.type==="FeatureCollection"?gj.features:[gj]; const f=(fs||[]).find(x=>x?.geometry?.type?.includes("Polygon")); return f?f.geometry:null; }
