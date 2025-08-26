@@ -1,47 +1,41 @@
-// js/map.js (diagnostic-safe)
+// js/map.js
 
-const API_BASE_URL = ""; // set your real Vercel URL later
+// ---- Set this AFTER you deploy a Vercel API (optional) ----
+// Example: "https://parcel-api-yourname.vercel.app"
+const API_BASE_URL = ""; // leave empty for now
 
-let map, parcelPolygon;
+// ---- Globals ----
+let map, drawManager;
+let lotPolygon = null;
+const turfPolygons = [];
 
-function say(msg) {
-  const el = document.getElementById("mapCaption");
-  if (el) el.textContent = msg;
-}
-
-(function bootstrap() {
-  // This runs as soon as the file loads — proves the script tag/path is correct
-  say("map.js loaded ✅ — waiting for Google…");
-})();
-
+// -----------------------------------------------------------
+// Google calls this (from the script tag's callback=initMap)
+// -----------------------------------------------------------
 window.initMap = function initMap() {
-  try {
-    say("initMap fired ✅ — building map…");
+  // Build the map
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 39.8283, lng: -98.5795 }, // CONUS
+    zoom: 4,
+    mapTypeId: "roadmap",
+    tilt: 0,
+    heading: 0
+  });
 
-    map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 37.773972, lng: -122.431297 },
-      zoom: 13,
-      mapTypeId: "roadmap",
-      tilt: 0,
-      heading: 0,
-    });
+  keepOverhead();
+  lockOverhead();
 
-    // keep overhead
-    map.addListener("tilt_changed", () => map.getTilt() !== 0 && map.setTilt(0));
-    map.addListener("heading_changed", () => map.getHeading() !== 0 && map.setHeading(0));
-
-    say("Map ready ✅ — type an address and press Enter");
-
-    // Try to enable search (new widget → legacy → plain geocode)
-    enableSearchSafely();
-  } catch (e) {
-    say("initMap error ❌ — " + (e && e.message ? e.message : e));
-  }
+  // UI + features
+  setupAutocomplete();    // address suggestions + fallbacks
+  setupDrawingTools();    // wires your toolbar buttons
+  say("Type an address and press Enter, or use the tools on the right.");
 };
 
-// --- Search wiring with graceful fallbacks ---
-async function enableSearchSafely() {
-  const host = document.querySelector(".search-box");
+// -----------------------------------------------------------
+// AUTOCOMPLETE (new PlaceAutocompleteElement → legacy → Enter)
+// -----------------------------------------------------------
+async function setupAutocomplete() {
+  const host  = document.querySelector(".search-box");
   const input = document.getElementById("address");
   if (!host || !input) return;
 
@@ -56,113 +50,79 @@ async function enableSearchSafely() {
     }
   });
 
-  // Try the new Places widget (if available for your key)
-  try {
-    await google.maps.importLibrary?.("places");
-  } catch (_) {}
+  // Try to load Places library (new element lives here)
+  try { await google.maps.importLibrary?.("places"); } catch (_) {}
 
+  // Preferred: NEW PlaceAutocompleteElement (Mar 2025+ for new keys)
   const hasNew = !!(google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places);
   if (hasNew) {
     try {
-      // @ts-ignore
+      // @ts-ignore (TS users only)
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
+
+      // replace your input with the new widget (keeps layout tidy)
       host.replaceChild(pac, input);
 
       // @ts-ignore
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
-        say("Address selected — moving map…");
         const place = placePrediction.toPlace();
         await place.fetchFields({ fields: ["formattedAddress", "location", "viewport"] });
 
-        if (place.viewport) {
-          map.fitBounds(place.viewport);
-        } else if (place.location) {
-          map.setCenter(place.location);
-          map.setZoom(18);
-        }
-        forceFlat();
-
+        moveCameraToPlace(place);
         if (API_BASE_URL && place.formattedAddress) {
           tryDrawParcel(place.formattedAddress);
-        } else if (!API_BASE_URL) {
-          console.warn("Parcel fetch skipped: API_BASE_URL not set");
         }
       });
 
-      say("Search ready ✅ (new Places)");
+      say("Search ready (new Places).");
       return;
     } catch (e) {
       console.warn("New Places widget failed, falling back:", e);
+      // Fall through to legacy
     }
   }
 
-  // Try legacy Autocomplete if allowed on your project
+  // Legacy Autocomplete for older keys/projects
   if (google?.maps?.places?.Autocomplete) {
     const ac = new google.maps.places.Autocomplete(input, {
       types: ["address"],
-      fields: ["formatted_address", "geometry"],
+      fields: ["formatted_address", "geometry"]
     });
     ac.addListener("place_changed", async () => {
       const p = ac.getPlace();
       if (!p || !p.geometry) return;
-      say("Address selected — moving map…");
-      const loc = p.geometry.location;
-      if (p.geometry.viewport) map.fitBounds(p.geometry.viewport);
-      else if (loc) { map.setCenter(loc); map.setZoom(18); }
-      forceFlat();
-      if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
+      moveCameraToLegacyPlace(p);
+      if (API_BASE_URL && p.formatted_address) {
+        tryDrawParcel(p.formatted_address);
+      }
     });
-    say("Search ready ✅ (legacy Places)");
+    say("Search ready (legacy Places).");
     return;
   }
 
-  // If neither Places API is available, we still have Enter-to-geocode
-  say("Search ready ✅ (press Enter to geocode)");
+  // If neither widget is available, Enter-to-geocode still works
+  say("Search ready (press Enter to geocode).");
 }
 
-// --- Parcel fetch/draw (guarded) ---
-async function tryDrawParcel(formattedAddress) {
-  try {
-    const url = `${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(formattedAddress)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json();
-    const gj = normalizePreciselyToGeoJSON(data);
-    const poly = pickFirstPolygon(gj);
-    if (poly) drawParcel(poly);
-  } catch (e) {
-    console.warn("Parcel fetch failed:", e?.message || e);
+function moveCameraToPlace(place) {
+  if (place.viewport) {
+    map.fitBounds(place.viewport);
+  } else if (place.location) {
+    map.setCenter(place.location);
+    map.setZoom(18);
   }
+  keepOverhead();
+  say("Address found. Outline the lot or measure turf.");
 }
 
-function drawParcel(geometry) {
-  if (parcelPolygon) parcelPolygon.setMap(null);
-  const ring = extractOuterRing(geometry);
-  if (!ring || !ring.length) return;
-
-  const path = ring.map(([lng, lat]) => ({ lat, lng }));
-  parcelPolygon = new google.maps.Polygon({
-    paths: path,
-    map,
-    strokeColor: "#ff0000",
-    strokeWeight: 3,
-    fillOpacity: 0,
-  });
-
-  const bounds = new google.maps.LatLngBounds();
-  path.forEach((pt) => bounds.extend(pt));
-  map.fitBounds(bounds, 40);
-  forceFlat();
-  say("Parcel drawn ✅");
-}
-
-// --- Utils ---
-function forceFlat() {
-  map.setMapTypeId("roadmap");
-  map.setHeading(0);
-  map.setTilt(0);
+function moveCameraToLegacyPlace(p) {
+  const loc = p.geometry.location;
+  if (p.geometry.viewport) map.fitBounds(p.geometry.viewport);
+  else if (loc) { map.setCenter(loc); map.setZoom(18); }
+  keepOverhead();
+  say("Address found. Outline the lot or measure turf.");
 }
 
 async function fallbackGeocode(query) {
@@ -173,35 +133,168 @@ async function fallbackGeocode(query) {
         const r = results[0];
         if (r.geometry?.viewport) map.fitBounds(r.geometry.viewport);
         else if (r.geometry?.location) { map.setCenter(r.geometry.location); map.setZoom(18); }
-        forceFlat();
-        say("Address found ✅ — outline the lot or measure turf.");
+        keepOverhead();
+        say("Address found. Outline the lot or measure turf.");
       } else {
-        say("Geocode failed ❌ — try a full address.");
+        say("Geocode failed — try a full address.");
       }
       resolve();
     });
   });
 }
 
+// -----------------------------------------------------------
+// DRAWING TOOLS (Outline Lot / Manual Turf) + area updates
+// -----------------------------------------------------------
+function setupDrawingTools() {
+  drawManager = new google.maps.drawing.DrawingManager({
+    drawingControl: false,
+    polygonOptions: { fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 }
+  });
+  drawManager.setMap(map);
+
+  byId("btnOutlineLot")?.addEventListener("click", startDrawingLot);
+  byId("btnManualTurf")?.addEventListener("click", startDrawingTurf);
+  byId("measureBtn")?.addEventListener("click", () => {
+    say("Click around the turf area. Double-click to finish.");
+    startDrawingTurf();
+  });
+  byId("btnSearchAgain")?.addEventListener("click", resetAll);
+}
+
+function startDrawingLot() {
+  drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
+    if (lotPolygon) lotPolygon.setMap(null);
+    lotPolygon = poly;
+    // red outline, no fill
+    lotPolygon.setOptions({ fillColor: "#00000000", strokeColor: "#ef4444", strokeWeight: 2 });
+    drawManager.setDrawingMode(null);
+    fitToPolygon(lotPolygon);
+    updateAreas();
+    say("Lot outlined. Now add turf polygons.");
+  });
+}
+
+function startDrawingTurf() {
+  drawManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
+    poly.setOptions({ fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 });
+    turfPolygons.push(poly);
+    drawManager.setDrawingMode(null);
+    updateAreas();
+  });
+}
+
+function updateAreas() {
+  const areaM2 = (poly) => google.maps.geometry.spherical.computeArea(poly.getPath());
+  const lot  = lotPolygon ? areaM2(lotPolygon) * 10.7639 : 0;
+  const turf = turfPolygons.reduce((s, p) => s + areaM2(p) * 10.7639, 0);
+
+  const n = (x) => Math.round(x);
+  if (byId("lotSqft"))  byId("lotSqft").value  = n(lot);
+  if (byId("turfSqft")) byId("turfSqft").value = n(turf);
+}
+
+function fitToPolygon(poly) {
+  const b = new google.maps.LatLngBounds();
+  poly.getPath().forEach((p) => b.extend(p));
+  map.fitBounds(b);
+  keepOverhead();
+}
+
+function resetAll() {
+  if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
+  while (turfPolygons.length) turfPolygons.pop().setMap(null);
+  ["lotSqft","turfSqft","firstName","lastName","phone","email"].forEach((id) => {
+    const el = byId(id);
+    if (el) el.value = "";
+  });
+  say("Type an address and press Enter.");
+}
+
+// -----------------------------------------------------------
+// OPTIONAL: Parcel fetch/draw (guarded until API_BASE_URL is set)
+// -----------------------------------------------------------
+async function tryDrawParcel(formattedAddress) {
+  if (!API_BASE_URL) { console.warn("Parcel fetch skipped: API_BASE_URL not set"); return; }
+  try {
+    const url = API_BASE_URL + "/api/parcel-by-address?address=" + encodeURIComponent(formattedAddress);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("API " + res.status);
+    const data = await res.json();
+    const gj   = normalizePreciselyToGeoJSON(data);
+    const poly = pickFirstPolygon(gj);
+    if (poly) drawParcel(poly);
+  } catch (e) {
+    console.warn("Parcel fetch failed:", e && e.message ? e.message : e);
+  }
+}
+
+function drawParcel(geometry) {
+  if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; } // replace lot with fetched boundary
+
+  const ring = extractOuterRing(geometry);
+  if (!ring || !ring.length) return;
+
+  const path = ring.map(function(pair){ return { lat: pair[1], lng: pair[0] }; });
+  lotPolygon = new google.maps.Polygon({
+    paths: path,
+    map,
+    strokeColor: "#ef4444",
+    strokeWeight: 2,
+    fillOpacity: 0
+  });
+
+  fitToPolygon(lotPolygon);
+  updateAreas();
+  say("Parcel drawn. You can add turf polygons now.");
+}
+
 // GeoJSON helpers
 function normalizePreciselyToGeoJSON(payload) {
-  if (payload?.type === "FeatureCollection" || payload?.type === "Feature") return payload;
-  if (Array.isArray(payload?.features)) return { type: "FeatureCollection", features: payload.features };
-  if (payload?.geometry?.type && payload?.geometry?.coordinates) {
+  if (payload && (payload.type === "FeatureCollection" || payload.type === "Feature")) return payload;
+  if (Array.isArray(payload && payload.features)) {
+    return { type: "FeatureCollection", features: payload.features };
+  }
+  if (payload && payload.geometry && payload.geometry.type && payload.geometry.coordinates) {
     return { type: "Feature", geometry: payload.geometry, properties: payload.properties || {} };
   }
   return { type: "FeatureCollection", features: [] };
 }
+
 function pickFirstPolygon(gj) {
-  const feats = gj?.type === "FeatureCollection" ? gj.features : [gj];
-  const f = (feats || []).find((x) => x?.geometry?.type?.includes("Polygon"));
+  const feats = gj && gj.type === "FeatureCollection" ? gj.features : [gj];
+  const f = (feats || []).find(function(x){ return x && x.geometry && String(x.geometry.type).indexOf("Polygon") !== -1; });
   return f ? f.geometry : null;
 }
+
+// Accepts Polygon or MultiPolygon; returns outer ring as [[lng,lat], ...]
 function extractOuterRing(geometry) {
   if (!geometry || !geometry.coordinates) return null;
-  if (geometry.type === "MultiPolygon") return geometry.coordinates?.[0]?.[0] || null;
-  if (geometry.type === "Polygon") return geometry.coordinates?.[0] || null;
-  const c = geometry.coordinates;
-  if (Array.isArray(c?.[0]) && typeof c[0][0] === "number") return c;
+  var coords = geometry.coordinates;
+  if (geometry.type === "MultiPolygon") return coords && coords[0] && coords[0][0] ? coords[0][0] : null;
+  if (geometry.type === "Polygon")      return coords && coords[0] ? coords[0] : null;
+  if (Array.isArray(coords[0]) && typeof coords[0][0] === "number") return coords;
   return null;
 }
+
+// -----------------------------------------------------------
+// Camera helpers
+// -----------------------------------------------------------
+function keepOverhead() {
+  if (!map) return;
+  map.setMapTypeId("roadmap");
+  map.setHeading(0);
+  map.setTilt(0);
+}
+function lockOverhead() {
+  map.addListener("tilt_changed",    function(){ if (map.getTilt() !== 0) map.setTilt(0); });
+  map.addListener("heading_changed", function(){ if (map.getHeading() !== 0) map.setHeading(0); });
+}
+
+// -----------------------------------------------------------
+// Tiny DOM helpers
+// -----------------------------------------------------------
+function byId(id) { return document.getElementById(id); }
+function say(msg) { var el = byId("mapCaption"); if (el) el.textContent = msg; }
