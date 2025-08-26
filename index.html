@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Search + Measure</title>
+
+  <!-- NEW: load your site CSS (keeps map visible even if inline CSS changes) -->
+  <link rel="stylesheet" href="css/styles.css">
+
   <style>
     :root{
       --gap:24px;--half-inch:0.5in;--green:#22c55e;--green-dark:#16a34a;--border:#e5e7eb;--text:#0f172a;--muted:#64748b;--bg:#f8fafc;--white:#fff;--shadow:0 8px 24px rgba(0,0,0,.08);--radius:16px;
@@ -13,12 +17,8 @@
 
     /* Layout: left form, right map+tools */
     .page{
-      max-width:1400px;
-      margin:40px auto;
-      padding:0 20px;
-      display:grid;
-      grid-template-columns:1fr 1.5fr;
-      gap:var(--gap)
+      max-width:1400px;margin:40px auto;padding:0 20px;
+      display:grid;grid-template-columns:1fr 1.5fr;gap:var(--gap)
     }
     @media (max-width:900px){.page{grid-template-columns:1fr}}
 
@@ -56,16 +56,12 @@
       width:100%; padding:10px 8px; font-size:13px; background:#fff; border:1px solid #ccc; border-radius:8px; cursor:pointer;
     }
     .tools button:hover { background:#eee; }
-
     .tools .btn-green{ background:var(--green); color:#fff; border:1px solid var(--green-dark); }
     .tools .btn-green:hover{ background:var(--green-dark); }
 
     .field-hint{color:#b91c1c;font-size:12px;margin-top:6px}
     input:invalid, select:invalid{border-color:#fca5a5}
   </style>
-
-  <!-- Google Maps JS (places + drawing + geometry) -->
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap"></script>
 </head>
 <body>
 <main class="page">
@@ -151,6 +147,7 @@
   </section>
 </main>
 
+<!-- Your original app script (unchanged) -->
 <script>
 /* ---------- Base map + autocomplete ---------- */
 let map, marker, geocoder, autocomplete;
@@ -179,7 +176,6 @@ function initMap(){
     const place = autocomplete.getPlace();
     if (!place || !place.geometry) return;
     setMapToPlace(place.formatted_address, place.geometry.location, 20);
-    // No NYS fetch here anymore
   });
 
   initDrawingTools();
@@ -210,7 +206,6 @@ measureBtn.addEventListener('click', async () => {
   try {
     const result = await geocodeAddress(addr);
     setMapToPlace(result.formatted_address, result.geometry.location);
-    // No NYS fetch here either
   } catch (err) {
     alert('Could not find that address. Please refine and try again.');
   }
@@ -445,5 +440,12 @@ function debounce(fn,ms){ let t; return (...args)=>{ clearTimeout(t); t=setTimeo
   });
 })();
 </script>
+
+<!-- NEW: load Google Maps once, at the end, with async (replace the key) -->
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_KEY_HERE&libraries=places,drawing,geometry&callback=initMap&loading=async"
+  async
+  defer
+></script>
 </body>
 </html>
