@@ -281,6 +281,8 @@ searchControlEl = pac;
     const ac = new google.maps.places.Autocomplete(input, {
       types: ["address"], fields: ["formatted_address","geometry"]
     });
+     flattenSearchBox(host);     // remove outer wrapper styling
+  styleSearchElement(input);  // round corners + placeholder
     ac.addListener("place_changed", () => {
       const p = ac.getPlace(); if (!p || !p.geometry) return;
       moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
