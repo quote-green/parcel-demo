@@ -1,112 +1,104 @@
-// js/map.js
+// js/map.js (diagnostic-safe)
 
-// Set this when your Vercel API is live, e.g. "https://parcel-api-xyz.vercel.app"
-const API_BASE_URL = ""; // leave empty for now
+const API_BASE_URL = ""; // set your real Vercel URL later
 
-let map, advMarker, parcelPolygon;
-let AdvancedMarkerElementRef = null;
+let map, parcelPolygon;
+
+function say(msg) {
+  const el = document.getElementById("mapCaption");
+  if (el) el.textContent = msg;
+}
+
+(function bootstrap() {
+  // This runs as soon as the file loads — proves the script tag/path is correct
+  say("map.js loaded ✅ — waiting for Google…");
+})();
 
 window.initMap = function initMap() {
-  // Build the map first so the UI isn't "just text"
-  map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat: 37.773972, lng: -122.431297 },
-    zoom: 13,
-    mapTypeId: "roadmap",
-    tilt: 0,
-    heading: 0,
-  });
+  try {
+    say("initMap fired ✅ — building map…");
 
-  forceTopDown();
-  lockTopDown();
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 37.773972, lng: -122.431297 },
+      zoom: 13,
+      mapTypeId: "roadmap",
+      tilt: 0,
+      heading: 0,
+    });
 
-  // Load optional libs without blocking the page
-  (async () => {
-    try {
-      await google.maps.importLibrary("places"); // needed for new widget
-    } catch (e) {
-      console.warn("Places library not available:", e);
-    }
-    try {
-      ({ AdvancedMarkerElement: AdvancedMarkerElementRef } = await google.maps.importLibrary("marker"));
-    } catch (e) {
-      console.warn("Advanced Marker library not available:", e);
-    }
-    setupSearchWidget(); // mount new widget or fallbacks
-  })();
+    // keep overhead
+    map.addListener("tilt_changed", () => map.getTilt() !== 0 && map.setTilt(0));
+    map.addListener("heading_changed", () => map.getHeading() !== 0 && map.setHeading(0));
+
+    say("Map ready ✅ — type an address and press Enter");
+
+    // Try to enable search (new widget → legacy → plain geocode)
+    enableSearchSafely();
+  } catch (e) {
+    say("initMap error ❌ — " + (e && e.message ? e.message : e));
+  }
 };
 
-/* -------------------- SEARCH WIDGET -------------------- */
-/* Try new PlaceAutocompleteElement; if unavailable, fallback gracefully. */
-function setupSearchWidget() {
+// --- Search wiring with graceful fallbacks ---
+async function enableSearchSafely() {
   const host = document.querySelector(".search-box");
   const input = document.getElementById("address");
   if (!host || !input) return;
 
-  // If the new element exists, mount it and then hide/replace the old input
-  const HasNewWidget =
-    google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places;
+  // Always keep Enter-to-geocode working
+  input.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const q = (input.value || "").trim();
+      if (!q) return;
+      say("Searching…");
+      await fallbackGeocode(q);
+    }
+  });
 
-  if (HasNewWidget) {
+  // Try the new Places widget (if available for your key)
+  try {
+    await google.maps.importLibrary?.("places");
+  } catch (_) {}
+
+  const hasNew = !!(google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places);
+  if (hasNew) {
     try {
-      // Make the new widget
-      // @ts-ignore (TS users)
-      const pac = new google.maps.places.PlaceAutocompleteElement({
-        // You can restrict, e.g.: includedPrimaryTypes: ['street_address']
-      });
-      pac.id = "place-autocomplete";
+      // @ts-ignore
+      const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-
-      // Replace the old input *only after* the new widget is ready
       host.replaceChild(pac, input);
 
-      // Handle selection (new API uses 'gmp-select' + Place object)
       // @ts-ignore
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
+        say("Address selected — moving map…");
         const place = placePrediction.toPlace();
-        await place.fetchFields({ fields: ["formattedAddress", "location", "viewport"] }); // new Place.fetchFields API
+        await place.fetchFields({ fields: ["formattedAddress", "location", "viewport"] });
 
-        // Center/zoom
         if (place.viewport) {
           map.fitBounds(place.viewport);
         } else if (place.location) {
           map.setCenter(place.location);
           map.setZoom(18);
         }
-        forceTopDown();
+        forceFlat();
 
-        // Optional marker
-        if (place.location && AdvancedMarkerElementRef) {
-          if (!advMarker) {
-            advMarker = new AdvancedMarkerElementRef({ map, position: place.location });
-          } else {
-            advMarker.position = place.location;
-            advMarker.map = map;
-          }
-        }
-
-        // Try parcel fetch only if a real API base is set
         if (API_BASE_URL && place.formattedAddress) {
-          try {
-            const gj = await fetchParcelByAddress(place.formattedAddress);
-            const poly = pickFirstPolygon(gj);
-            if (poly) drawParcel(poly);
-          } catch (e) {
-            console.warn("Parcel fetch failed:", e?.message || e);
-          }
+          tryDrawParcel(place.formattedAddress);
         } else if (!API_BASE_URL) {
           console.warn("Parcel fetch skipped: API_BASE_URL not set");
         }
       });
 
-      return; // we’re done — new widget is mounted
+      say("Search ready ✅ (new Places)");
+      return;
     } catch (e) {
-      console.warn("New PlaceAutocompleteElement failed, falling back:", e);
-      // Fall through to legacy/fallback
+      console.warn("New Places widget failed, falling back:", e);
     }
   }
 
-  // Legacy Autocomplete (works for older projects). If unavailable, we still keep input visible.
+  // Try legacy Autocomplete if allowed on your project
   if (google?.maps?.places?.Autocomplete) {
     const ac = new google.maps.places.Autocomplete(input, {
       types: ["address"],
@@ -115,60 +107,38 @@ function setupSearchWidget() {
     ac.addListener("place_changed", async () => {
       const p = ac.getPlace();
       if (!p || !p.geometry) return;
+      say("Address selected — moving map…");
       const loc = p.geometry.location;
-      if (p.geometry.viewport) {
-        map.fitBounds(p.geometry.viewport);
-      } else if (loc) {
-        map.setCenter(loc);
-        map.setZoom(18);
-      }
-      forceTopDown();
-
-      if (AdvancedMarkerElementRef && loc) {
-        if (!advMarker) {
-          advMarker = new AdvancedMarkerElementRef({ map, position: loc });
-        } else {
-          advMarker.position = loc;
-          advMarker.map = map;
-        }
-      }
-
-      if (API_BASE_URL && p.formatted_address) {
-        try {
-          const gj = await fetchParcelByAddress(p.formatted_address);
-          const poly = pickFirstPolygon(gj);
-          if (poly) drawParcel(poly);
-        } catch (e) {
-          console.warn("Parcel fetch failed:", e?.message || e);
-        }
-      }
+      if (p.geometry.viewport) map.fitBounds(p.geometry.viewport);
+      else if (loc) { map.setCenter(loc); map.setZoom(18); }
+      forceFlat();
+      if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
+    say("Search ready ✅ (legacy Places)");
+    return;
   }
 
-  // Always keep an Enter-to-geocode fallback
-  input.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const q = (input.value || "").trim();
-      if (!q) return;
-      await fallbackGeocode(q);
-    }
-  });
+  // If neither Places API is available, we still have Enter-to-geocode
+  say("Search ready ✅ (press Enter to geocode)");
 }
 
-/* -------------------- PARCEL FETCH/DRAW -------------------- */
-async function fetchParcelByAddress(address) {
-  if (!API_BASE_URL) throw new Error("Set API_BASE_URL to your Vercel app URL");
-  const url = `${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(address)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  const data = await res.json();
-  return normalizePreciselyToGeoJSON(data);
+// --- Parcel fetch/draw (guarded) ---
+async function tryDrawParcel(formattedAddress) {
+  try {
+    const url = `${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(formattedAddress)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data = await res.json();
+    const gj = normalizePreciselyToGeoJSON(data);
+    const poly = pickFirstPolygon(gj);
+    if (poly) drawParcel(poly);
+  } catch (e) {
+    console.warn("Parcel fetch failed:", e?.message || e);
+  }
 }
 
 function drawParcel(geometry) {
   if (parcelPolygon) parcelPolygon.setMap(null);
-
   const ring = extractOuterRing(geometry);
   if (!ring || !ring.length) return;
 
@@ -178,53 +148,21 @@ function drawParcel(geometry) {
     map,
     strokeColor: "#ff0000",
     strokeWeight: 3,
-    fillOpacity: 0, // red outline, no fill
+    fillOpacity: 0,
   });
 
   const bounds = new google.maps.LatLngBounds();
   path.forEach((pt) => bounds.extend(pt));
   map.fitBounds(bounds, 40);
-  forceTopDown();
+  forceFlat();
+  say("Parcel drawn ✅");
 }
 
-/* -------------------- GeoJSON helpers -------------------- */
-function normalizePreciselyToGeoJSON(payload) {
-  if (payload?.type === "FeatureCollection" || payload?.type === "Feature") return payload;
-  if (Array.isArray(payload?.features)) {
-    return { type: "FeatureCollection", features: payload.features };
-  }
-  if (payload?.geometry?.type && payload?.geometry?.coordinates) {
-    return { type: "Feature", geometry: payload.geometry, properties: payload.properties || {} };
-  }
-  return { type: "FeatureCollection", features: [] };
-}
-
-function pickFirstPolygon(gj) {
-  const feats = gj?.type === "FeatureCollection" ? gj.features : [gj];
-  const f = (feats || []).find((x) => x?.geometry?.type?.includes("Polygon"));
-  return f ? f.geometry : null;
-}
-
-// Accepts Polygon or MultiPolygon; returns outer ring as [[lng,lat], ...]
-function extractOuterRing(geometry) {
-  if (!geometry || !geometry.coordinates) return null;
-  const coords = geometry.coordinates;
-  if (geometry.type === "MultiPolygon") return coords?.[0]?.[0] || null;
-  if (geometry.type === "Polygon") return coords?.[0] || null;
-  if (Array.isArray(coords?.[0]) && typeof coords[0][0] === "number") return coords;
-  return null;
-}
-
-/* -------------------- CAMERA + GEOCODER -------------------- */
-function forceTopDown() {
-  if (!map) return;
+// --- Utils ---
+function forceFlat() {
   map.setMapTypeId("roadmap");
   map.setHeading(0);
   map.setTilt(0);
-}
-function lockTopDown() {
-  map.addListener("tilt_changed", () => map.getTilt() !== 0 && map.setTilt(0));
-  map.addListener("heading_changed", () => map.getHeading() !== 0 && map.setHeading(0));
 }
 
 async function fallbackGeocode(query) {
@@ -232,16 +170,38 @@ async function fallbackGeocode(query) {
   return new Promise((resolve) => {
     geocoder.geocode({ address: query }, (results, status) => {
       if (status === "OK" && results[0]) {
-        const loc = results[0].geometry.location;
-        if (results[0].geometry.viewport) {
-          map.fitBounds(results[0].geometry.viewport);
-        } else if (loc) {
-          map.setCenter(loc);
-          map.setZoom(18);
-        }
-        forceTopDown();
+        const r = results[0];
+        if (r.geometry?.viewport) map.fitBounds(r.geometry.viewport);
+        else if (r.geometry?.location) { map.setCenter(r.geometry.location); map.setZoom(18); }
+        forceFlat();
+        say("Address found ✅ — outline the lot or measure turf.");
+      } else {
+        say("Geocode failed ❌ — try a full address.");
       }
       resolve();
     });
   });
+}
+
+// GeoJSON helpers
+function normalizePreciselyToGeoJSON(payload) {
+  if (payload?.type === "FeatureCollection" || payload?.type === "Feature") return payload;
+  if (Array.isArray(payload?.features)) return { type: "FeatureCollection", features: payload.features };
+  if (payload?.geometry?.type && payload?.geometry?.coordinates) {
+    return { type: "Feature", geometry: payload.geometry, properties: payload.properties || {} };
+  }
+  return { type: "FeatureCollection", features: [] };
+}
+function pickFirstPolygon(gj) {
+  const feats = gj?.type === "FeatureCollection" ? gj.features : [gj];
+  const f = (feats || []).find((x) => x?.geometry?.type?.includes("Polygon"));
+  return f ? f.geometry : null;
+}
+function extractOuterRing(geometry) {
+  if (!geometry || !geometry.coordinates) return null;
+  if (geometry.type === "MultiPolygon") return geometry.coordinates?.[0]?.[0] || null;
+  if (geometry.type === "Polygon") return geometry.coordinates?.[0] || null;
+  const c = geometry.coordinates;
+  if (Array.isArray(c?.[0]) && typeof c[0][0] === "number") return c;
+  return null;
 }
