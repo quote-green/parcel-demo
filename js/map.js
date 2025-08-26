@@ -1,4 +1,4 @@
-// js/map.js  (SAFE COMPACT v1)
+// js/map.js  (SAFE COMPACT v2 — tighter zoom on selection)
 // Dropdown (new Places -> legacy), Enter-to-geocode, drawing tools, overhead lock.
 
 const API_BASE_URL = ""; // optional parcel API later
@@ -8,6 +8,9 @@ let lotPolygon = null;
 const turfPolys = [];
 const undoStack = [];
 const redoStack = [];
+
+// Keep a handle to the active search control to focus/clear on "Search Again"
+let searchControlEl = null; // will be the <gmp-place-autocomplete> or the <input id="address">
 
 // --------- BOOT ----------
 window.initMap = async function initMap() {
@@ -61,16 +64,22 @@ async function setupAutocomplete() {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-      host.appendChild(pac);     // safe mount
+
+      // SAFE mount: append then hide input — avoids observer(null) issues
+      host.appendChild(pac);
       input.style.display = "none";
+      searchControlEl = pac;
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
         try {
           const place = placePrediction.toPlace();
           await place.fetchFields({ fields: ["formattedAddress","location","viewport"] });
-          moveCamera(place.location, place.viewport);
+          // --- TIGHT ZOOM: prefer location; fall back to viewport; default zoom 19
+          moveCamera(place.location ?? null, place.viewport ?? null, 19);
           if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
-        } catch (err) { console.warn("[places:new] select error:", err); }
+        } catch (err) {
+          console.warn("[places:new] select error:", err);
+        }
       });
 
       console.log("[places] new element ready");
@@ -90,14 +99,18 @@ async function setupAutocomplete() {
     ac.addListener("place_changed", () => {
       const p = ac.getPlace();
       if (!p || !p.geometry) return;
-      moveCamera(p.geometry.location, p.geometry.viewport);
+      // --- TIGHT ZOOM
+      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
+    searchControlEl = input;
     console.log("[places] legacy Autocomplete ready");
     say("Suggestions ready.");
     return;
   }
 
+  // Otherwise, Enter-to-geocode only
+  searchControlEl = input;
   console.warn("[places] no dropdown available; using Enter only");
   say("Press Enter to geocode.");
 }
@@ -109,7 +122,8 @@ function geocode(q) {
     g.geocode({ address: q }, (results, status) => {
       if (status === "OK" && results[0]) {
         const r = results[0];
-        moveCamera(r.geometry.location, r.geometry.viewport);
+        // --- TIGHT ZOOM
+        moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19);
         say("Address found — outline lot or measure turf.");
       } else {
         say("Geocode failed — try a full address.");
@@ -118,24 +132,30 @@ function geocode(q) {
     });
   });
 }
+
+/**
+ * Move camera with a strong preference for a tight zoom.
+ * - If we have a point location: center + setZoom(zoom)
+ * - Else if we only have a viewport: fitBounds, then force zoom on idle
+ * - Always keep overhead (2D) view
+ */
 function moveCamera(location, viewport, zoom = 19) {
-  // zoom: how close you want to be (19 is house-level; 20 is really tight)
+  if (location) {
+    map.setCenter(location);
+    map.setZoom(zoom);
+    keepOverhead();
+    return;
+  }
   if (viewport) {
     map.fitBounds(viewport);
-    // After fitBounds settles, force a tight zoom
     google.maps.event.addListenerOnce(map, "idle", () => {
       map.setZoom(zoom);
       keepOverhead();
     });
-  } else if (location) {
-    map.setCenter(location);
-    map.setZoom(zoom);
-    keepOverhead();
-  } else {
-    keepOverhead();
+    return;
   }
+  keepOverhead();
 }
-
 
 // --------- DRAWING TOOLS ----------
 function setupDrawingTools() {
@@ -154,8 +174,8 @@ function setupDrawingTools() {
   bind("btnOutlineLot", startDrawingLot);
   bind("btnManualTurf", startDrawingTurf);
   bind("measureBtn", () => { say("Click around the turf; double-click to finish."); startDrawingTurf(); });
-  bind("btnSearchAgain", resetAll);
-  bind("btnReset", resetAll);
+  bind("btnSearchAgain", () => { resetAll(true); });
+  bind("btnReset", () => { resetAll(false); });
   bind("btnDelete", deleteLast);
   bind("btnEdit", toggleEdit);
   bind("btnUndo", undo);
@@ -218,12 +238,25 @@ function deleteLast() {
   say("Nothing to delete.");
 }
 
-function resetAll() {
+function resetAll(focusSearch) {
   if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
   while (turfPolys.length) turfPolys.pop().setMap(null);
   ["lotSqft","turfSqft","firstName","lastName","phone","email"].forEach(id => { const el = byId(id); if (el) el.value = ""; });
   undoStack.length = 0; redoStack.length = 0;
-  say("Reset — search again."); updateAreas();
+  say("Reset — search again.");
+  updateAreas();
+
+  // Keep current zoom; just refocus the search
+  try {
+    if (searchControlEl) {
+      // Clear value if supported (new element supports .value)
+      if ("value" in searchControlEl) searchControlEl.value = "";
+      if (focusSearch && typeof searchControlEl.focus === "function") searchControlEl.focus();
+    } else {
+      const input = document.getElementById("address");
+      if (focusSearch && input) input.focus();
+    }
+  } catch (_) {}
 }
 
 // --------- UNDO/REDO ----------
