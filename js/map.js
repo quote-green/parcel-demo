@@ -442,3 +442,13 @@ function extractOuterRing(g){
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
 }
+function forceReload() {
+  try {
+    const url = new URL(location.href);
+    url.searchParams.set("cb", Date.now().toString()); // cache-buster
+    location.replace(url.toString());
+  } catch (_) {
+    location.reload(); // fallback
+  }
+}
+
