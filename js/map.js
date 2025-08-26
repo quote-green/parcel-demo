@@ -1,4 +1,4 @@
-// js/map.js  (SAFE COMPACT v2 — tighter zoom on selection)
+// js/map.js  (SAFE COMPACT v3 — auto-creates toolbar if missing + tight zoom)
 // Dropdown (new Places -> legacy), Enter-to-geocode, drawing tools, overhead lock.
 
 const API_BASE_URL = ""; // optional parcel API later
@@ -8,11 +8,9 @@ let lotPolygon = null;
 const turfPolys = [];
 const undoStack = [];
 const redoStack = [];
+let searchControlEl = null; // <gmp-place-autocomplete> or the <input id="address">
 
-// Keep a handle to the active search control to focus/clear on "Search Again"
-let searchControlEl = null; // will be the <gmp-place-autocomplete> or the <input id="address">
-
-// --------- BOOT ----------
+// ---------- BOOT ----------
 window.initMap = async function initMap() {
   try {
     if (google.maps.importLibrary) {
@@ -33,7 +31,8 @@ window.initMap = async function initMap() {
     lockOverhead();
 
     await setupAutocomplete(); // dropdown + Enter fallback
-    setupDrawingTools();       // toolbar
+    ensureToolbar();           // <— create buttons if HTML didn't include them
+    setupDrawingTools();       // wire events
 
     say("Ready — start typing or press Enter.");
     console.log("[OK] map init");
@@ -43,7 +42,7 @@ window.initMap = async function initMap() {
   }
 };
 
-// --------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
+// ---------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
 async function setupAutocomplete() {
   const host  = document.querySelector(".search-box");
   const input = document.getElementById("address");
@@ -64,9 +63,7 @@ async function setupAutocomplete() {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-
-      // SAFE mount: append then hide input — avoids observer(null) issues
-      host.appendChild(pac);
+      host.appendChild(pac);      // safe mount
       input.style.display = "none";
       searchControlEl = pac;
 
@@ -74,12 +71,9 @@ async function setupAutocomplete() {
         try {
           const place = placePrediction.toPlace();
           await place.fetchFields({ fields: ["formattedAddress","location","viewport"] });
-          // --- TIGHT ZOOM: prefer location; fall back to viewport; default zoom 19
-          moveCamera(place.location ?? null, place.viewport ?? null, 19);
+          moveCamera(place.location ?? null, place.viewport ?? null, 19); // tight zoom
           if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
-        } catch (err) {
-          console.warn("[places:new] select error:", err);
-        }
+        } catch (err) { console.warn("[places:new] select error:", err); }
       });
 
       console.log("[places] new element ready");
@@ -99,8 +93,7 @@ async function setupAutocomplete() {
     ac.addListener("place_changed", () => {
       const p = ac.getPlace();
       if (!p || !p.geometry) return;
-      // --- TIGHT ZOOM
-      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19); // tight zoom
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
     searchControlEl = input;
@@ -109,21 +102,20 @@ async function setupAutocomplete() {
     return;
   }
 
-  // Otherwise, Enter-to-geocode only
+  // Enter-only
   searchControlEl = input;
   console.warn("[places] no dropdown available; using Enter only");
   say("Press Enter to geocode.");
 }
 
-// --------- GEOCODE & CAMERA ----------
+// ---------- GEOCODE & CAMERA ----------
 function geocode(q) {
   const g = new google.maps.Geocoder();
   return new Promise((resolve) => {
     g.geocode({ address: q }, (results, status) => {
       if (status === "OK" && results[0]) {
         const r = results[0];
-        // --- TIGHT ZOOM
-        moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19);
+        moveCamera(r.geometry.location ?? null, r.geometry.viewport ?? null, 19); // tight zoom
         say("Address found — outline lot or measure turf.");
       } else {
         say("Geocode failed — try a full address.");
@@ -133,12 +125,7 @@ function geocode(q) {
   });
 }
 
-/**
- * Move camera with a strong preference for a tight zoom.
- * - If we have a point location: center + setZoom(zoom)
- * - Else if we only have a viewport: fitBounds, then force zoom on idle
- * - Always keep overhead (2D) view
- */
+/** Tight zoom helper */
 function moveCamera(location, viewport, zoom = 19) {
   if (location) {
     map.setCenter(location);
@@ -157,7 +144,42 @@ function moveCamera(location, viewport, zoom = 19) {
   keepOverhead();
 }
 
-// --------- DRAWING TOOLS ----------
+// ---------- TOOLBAR (auto-create if missing) ----------
+function ensureToolbar() {
+  let tools = document.querySelector(".tools");
+  if (tools) return tools;
+
+  const mapCard = document.querySelector(".map-card") || document.body;
+  tools = document.createElement("nav");
+  tools.className = "tools";
+  tools.setAttribute("aria-label", "Map tools");
+  // Minimal inline style so it shows even if CSS isn't loaded
+  tools.style.cssText = "width:84px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:14px;background:#f9f9f9;display:flex;flex-direction:column;gap:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.08);height:fit-content;margin-left:10px;";
+  tools.innerHTML = `
+    <button id="btnManualTurf">Manual Turf Measure</button>
+    <button id="btnOutlineLot">Outline Property Boundaries</button>
+    <button id="btnEdit">Edit</button>
+    <button id="btnDelete">Delete</button>
+    <button id="btnReset">Reset</button>
+    <button id="btnUndo">Undo</button>
+    <button id="btnRedo">Redo</button>
+    <button id="btnSave">Save</button>
+    <button id="btnSearchAgain" title="Start a new search">Search Again</button>
+  `;
+  // Basic button styling
+  tools.querySelectorAll("button").forEach((b) => {
+    b.style.cssText = "width:100%;padding:10px 8px;font-size:13px;background:#fff;border:1px solid #ccc;border-radius:8px;cursor:pointer;";
+    b.addEventListener("mouseover", () => (b.style.background = "#eee"));
+    b.addEventListener("mouseout",  () => (b.style.background = "#fff"));
+  });
+  const again = tools.querySelector("#btnSearchAgain");
+  if (again) { again.style.background = "#22c55e"; again.style.color = "#fff"; again.style.borderColor = "#16a34a"; }
+
+  mapCard.appendChild(tools);
+  return tools;
+}
+
+// ---------- DRAWING TOOLS ----------
 function setupDrawingTools() {
   if (!google?.maps?.drawing) {
     console.error("[drawing] library missing");
@@ -246,10 +268,8 @@ function resetAll(focusSearch) {
   say("Reset — search again.");
   updateAreas();
 
-  // Keep current zoom; just refocus the search
   try {
     if (searchControlEl) {
-      // Clear value if supported (new element supports .value)
       if ("value" in searchControlEl) searchControlEl.value = "";
       if (focusSearch && typeof searchControlEl.focus === "function") searchControlEl.focus();
     } else {
@@ -259,7 +279,7 @@ function resetAll(focusSearch) {
   } catch (_) {}
 }
 
-// --------- UNDO/REDO ----------
+// ---------- UNDO/REDO ----------
 function pushAction(a){ undoStack.push(a); redoStack.length = 0; }
 function undo(){
   const a = undoStack.pop(); if (!a) return say("Nothing to undo.");
@@ -274,11 +294,11 @@ function redo(){
   if (a.type==="addTurf"){ const p=polygonFromPath(a.path,{fillColor:"#22c55e55",strokeColor:"#16a34a",strokeWeight:2}); turfPolys.push(p); attachPathListeners(p); undoStack.push({type:"addTurf",path:a.path}); }
   else if (a.type==="setLot"){ if(lotPolygon) lotPolygon.setMap(null); lotPolygon=polygonFromPath(a.path,{fillColor:"#0000",strokeColor:"#ef4444",strokeWeight:2}); attachPathListeners(lotPolygon); undoStack.push({type:"setLot",path:a.path}); }
   else if (a.type==="deleteTurf"){ const p=turfPolys.pop(); if(p) p.setMap(null); undoStack.push({type:"deleteTurf",path:a.path}); }
-  else if (a.type==="deleteLot"){ if(lotPolygon){lotPolygon.setMap(null); lotPolygon=null;} undoStack.push({type:"deleteLot",path:a.path}); }
+  else if (a.type==="deleteLot"){ if (lotPolygon) { lotPolygon.setMap(null); lotPolygon=null; } undoStack.push({type:"deleteLot",path:a.path}); }
   updateAreas(); say("Redid last action.");
 }
 
-// --------- SAVE ----------
+// ---------- SAVE ----------
 function saveGeoJSON(){
   const gj = { type:"FeatureCollection", features:[] };
   if (lotPolygon) gj.features.push(polygonToFeature(lotPolygon,{kind:"lot"}));
@@ -289,7 +309,7 @@ function saveGeoJSON(){
   URL.revokeObjectURL(a.href); say("Saved GeoJSON.");
 }
 
-// --------- Optional parcel fetch ----------
+// ---------- Optional parcel fetch ----------
 async function tryDrawParcel(formattedAddress){
   if (!API_BASE_URL) return;
   try {
@@ -311,7 +331,7 @@ function drawParcel(geometry){
   fit(lotPolygon); updateAreas(); say("Parcel drawn — add turf polygons.");
 }
 
-// --------- HELPERS ----------
+// ---------- HELPERS ----------
 function keepOverhead(){ map.setMapTypeId("roadmap"); map.setHeading(0); map.setTilt(0); }
 function lockOverhead(){ map.addListener("tilt_changed",()=> map.getTilt()!==0 && map.setTilt(0)); map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0)); }
 function fit(poly){ const b=new google.maps.LatLngBounds(); poly.getPath().forEach(p=>b.extend(p)); map.fitBounds(b); keepOverhead(); }
@@ -352,4 +372,3 @@ function extractOuterRing(g){
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
 }
-// END FILE
