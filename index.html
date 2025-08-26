@@ -8,10 +8,14 @@
   <!-- Tiny transparent favicon to avoid /favicon.ico 404 -->
   <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">
 
-  <!-- Your stylesheet -->
+  <!-- External CSS -->
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
+<div id="proof" style="position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:14px/1.2 monospace">
+  SPLIT 1001
+</div>
+
 <main class="page">
   <section class="card" aria-label="Search and contact">
     <div class="search-box">
@@ -96,7 +100,7 @@
 </main>
 
 <!-- Your app code (must load before Google callback fires) -->
-<script src="js/map.js?v=1"></script>
+<script src="js/map.js?v=2"></script>
 
 <!-- Google Maps (PUT YOUR REAL KEY; keep callback=initMap) -->
 <script
