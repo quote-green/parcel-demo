@@ -1,4 +1,5 @@
-// js/map.js  (SAFE COMPACT v7 — required fields + satellite + tight zoom + tools)
+// js/map.js  (SAFE COMPACT v8 — required fields enforced + no refresh + satellite)
+// Requires: your current index.html. Search Again still hard-reloads.
 
 const API_BASE_URL = ""; // optional parcel API later
 
@@ -90,7 +91,7 @@ function ensureLeftPaneAndForm(){
   let form = leftCard.querySelector("#contactForm");
   if (!form) {
     form = document.createElement("form");
-    form.id = "contactForm"; form.noValidate = true;
+    form.id = "contactForm";
     form.innerHTML = `
       <div class="grid-2" style="margin-top:12px;">
         <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text" autocomplete="given-name"></div>
@@ -122,23 +123,9 @@ function ensureLeftPaneAndForm(){
     leftCard.appendChild(form);
   }
 
-  // Enforce "required" on the needed fields (and a phone pattern)
+  // REQUIRED + client-side validation wiring
   enforceRequiredFields(form);
-
-  // Handle submit: block when invalid, show native messages, scroll to first invalid
-  form.addEventListener("submit", (e) => {
-    const f = e.currentTarget;
-    if (!f.checkValidity()) {
-      e.preventDefault();
-      f.reportValidity();
-      const firstBad = f.querySelector(":invalid");
-      if (firstBad) firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
-      say("Please complete the required fields.");
-      return;
-    }
-    e.preventDefault(); // prevent navigation for now; replace with your own submit later
-    say("Thanks — we’ll follow up shortly.");
-  });
+  setupFormValidation(form);
 }
 
 function enforceRequiredFields(form){
@@ -148,17 +135,95 @@ function enforceRequiredFields(form){
     el.required = true;
     el.setAttribute("aria-required","true");
     if (typeof cb === "function") cb(el);
+    ensureErrorSlot(el);
   };
 
   req("#firstName");
   req("#lastName");
-  req("#email"); // type="email" gives native validation
+  req("#email"); // type=email handles format
   req("#phone", (el) => {
     el.pattern = "[0-9\\-+() .]{7,}";
     el.title = "Please enter a valid phone number (at least 7 digits).";
   });
   req("#referrer");
-  req("#smsConsent", (el) => { el.required = true; }); // checkbox must be checked
+  req("#smsConsent", (el) => { el.required = true; });
+}
+
+function setupFormValidation(form){
+  // Remove novalidate to allow native checks
+  form.removeAttribute("novalidate");
+
+  // Recompute button disabled state on input
+  const watch = ["#firstName","#lastName","#email","#phone","#referrer","#smsConsent"];
+  const updateButton = () => {
+    const btn = form.querySelector("#continueBtn");
+    if (!btn) return;
+    btn.disabled = !form.checkValidity();
+  };
+  watch.forEach(sel => {
+    const el = form.querySelector(sel);
+    if (!el) return;
+    el.addEventListener("input", () => { clearError(el); updateButton(); });
+    el.addEventListener("change", () => { clearError(el); updateButton(); });
+  });
+  updateButton();
+
+  // Intercept submit: never navigate; show errors if invalid
+  form.addEventListener("submit", (e) => {
+    e.preventDefault(); // <-- stops refresh
+    if (!form.checkValidity()) {
+      showInlineErrors(form);
+      form.reportValidity(); // also show native bubble
+      say("Please complete the required fields.");
+      return;
+    }
+    // Success path — keep user on page, show confirmation
+    say("Thanks — we’ll follow up shortly.");
+  });
+}
+
+function ensureErrorSlot(el){
+  // Add a <div class="field-hint"> under the field if missing
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  if (!wrap.querySelector(".field-hint")) {
+    const hint = document.createElement("div");
+    hint.className = "field-hint";
+    hint.style.display = "none";
+    wrap.appendChild(hint);
+  }
+}
+function setError(el, msg){
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  const hint = wrap.querySelector(".field-hint");
+  if (!hint) return;
+  hint.textContent = msg || "";
+  hint.style.display = msg ? "block" : "none";
+  el.classList.add("invalid");
+}
+function clearError(el){
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  const hint = wrap.querySelector(".field-hint");
+  if (hint) { hint.textContent = ""; hint.style.display = "none"; }
+  el.classList.remove("invalid");
+}
+function showInlineErrors(form){
+  const f = (sel) => form.querySelector(sel);
+  const firstName = f("#firstName");
+  const lastName  = f("#lastName");
+  const email     = f("#email");
+  const phone     = f("#phone");
+  const referrer  = f("#referrer");
+  const consent   = f("#smsConsent");
+
+  if (firstName && !firstName.checkValidity()) setError(firstName, "First name is required.");
+  if (lastName  && !lastName.checkValidity())  setError(lastName,  "Last name is required.");
+  if (email     && !email.checkValidity())     setError(email,     email.validationMessage || "Enter a valid email.");
+  if (phone     && !phone.checkValidity())     setError(phone,     phone.validationMessage || "Enter a valid phone.");
+  if (referrer  && !referrer.checkValidity())  setError(referrer,  "Please select one option.");
+  if (consent   && !consent.checkValidity())   setError(consent,   "Please check this box to continue.");
 }
 
 // ---------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
@@ -310,7 +375,7 @@ function setupDrawingTools() {
   bind("btnManualTurf", startDrawingTurf);
   bind("measureBtn", () => { say("Click around the turf; double-click to finish."); startDrawingTurf(); });
 
-  // REFRESH the whole page on "Search Again" (cache-buster)
+  // REFRESH the whole page on "Search Again"
   bind("btnSearchAgain", forceReload);
 
   bind("btnReset", () => { resetAll(false); });
