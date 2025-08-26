@@ -570,4 +570,14 @@ function extractOuterRing(g){
   if (g.type==="Polygon")      return c?.[0]||null;
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
+} 
+function flattenSearchBox(host){
+  // Remove the outer pill so we don't see a box-inside-a-box
+  if (!host) return;
+  host.style.border = "0";
+  host.style.padding = "0";
+  host.style.background = "transparent";
+  host.style.borderRadius = "0";
+  host.style.boxShadow = "none";
 }
+
