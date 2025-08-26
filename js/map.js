@@ -263,7 +263,7 @@ function setupDrawingTools() {
   bind("btnOutlineLot", startDrawingLot);
   bind("btnManualTurf", startDrawingTurf);
   bind("measureBtn", () => { say("Click around the turf; double-click to finish."); startDrawingTurf(); });
-  bind("btnSearchAgain", () => { resetAll(true); });
+  bind("btnSearchAgain", forceReload);
   bind("btnReset", () => { resetAll(false); });
   bind("btnDelete", deleteLast);
   bind("btnEdit", toggleEdit);
