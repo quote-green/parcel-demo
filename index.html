@@ -4,16 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Search + Measure</title>
-
-  <!-- Tiny transparent favicon to avoid /favicon.ico 404 -->
   <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">
-
-  <!-- External CSS -->
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 <div id="proof" style="position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:14px/1.2 monospace">
-  SPLIT 1001
+  SPLIT 1010
 </div>
 
 <main class="page">
@@ -24,36 +20,20 @@
 
     <form id="contactForm" novalidate>
       <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="firstName">First Name</label>
-          <input id="firstName" name="firstName" type="text" autocomplete="given-name">
-        </div>
-        <div>
-          <label for="lastName">Last Name</label>
-          <input id="lastName" name="lastName" type="text" autocomplete="family-name">
-        </div>
+        <div><label for="firstName">First Name</label><input id="firstName" name="firstName" type="text"></div>
+        <div><label for="lastName">Last Name</label><input id="lastName" name="lastName" type="text"></div>
       </div>
 
       <div class="grid-2" style="margin-top:12px;">
-        <div>
-          <label for="phone">Phone</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
-        </div>
-        <div>
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email">
-        </div>
+        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" inputmode="tel"></div>
+        <div><label for="email">Email</label><input id="email" name="email" type="email"></div>
       </div>
 
       <div style="margin-top:12px;">
         <label for="referrer">How did you find us?</label>
         <select id="referrer" name="referrer">
           <option value="" disabled selected>Select one...</option>
-          <option>Google</option>
-          <option>Friend</option>
-          <option>Social Media</option>
-          <option>Yard Sign / Vehicle</option>
-          <option>Other</option>
+          <option>Google</option><option>Friend</option><option>Social Media</option><option>Yard Sign / Vehicle</option><option>Other</option>
         </select>
       </div>
 
@@ -63,14 +43,8 @@
       </div>
 
       <div class="half-inch-gap pair">
-        <div>
-          <label for="lotSqft">Lot sq ft</label>
-          <input id="lotSqft" name="lotSqft" type="number" min="0" step="1">
-        </div>
-        <div>
-          <label for="turfSqft">Turf sq ft</label>
-          <input id="turfSqft" name="turfSqft" type="number" min="0" step="1">
-        </div>
+        <div><label for="lotSqft">Lot sq ft</label><input id="lotSqft" name="lotSqft" type="number" min="0" step="1"></div>
+        <div><label for="turfSqft">Turf sq ft</label><input id="turfSqft" name="turfSqft" type="number" min="0" step="1"></div>
       </div>
 
       <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
@@ -81,10 +55,9 @@
   <section class="card map-card" aria-label="Map">
     <div class="map-box" id="mapBox">
       <div id="map"></div>
-      <div id="mapCaption">Type an address and press Enter</div>
+      <div id="mapCaption">Start typing or press Enter</div>
     </div>
 
-    <!-- Tools -->
     <nav class="tools" aria-label="Map tools">
       <button id="btnManualTurf">Manual Turf Measure</button>
       <button id="btnOutlineLot">Outline Property Boundaries</button>
@@ -94,17 +67,15 @@
       <button id="btnUndo">Undo</button>
       <button id="btnRedo">Redo</button>
       <button id="btnSave">Save</button>
-      <button id="btnSearchAgain" class="btn-green" title="Start a new search">Search Again</button>
+      <button id="btnSearchAgain" class="btn-green">Search Again</button>
     </nav>
   </section>
 </main>
 
-<!-- Your app code (must load before Google callback fires) -->
-<script src="js/map.js?v=2"></script>
+<!-- Load your app code BEFORE the Google callback fires -->
+<script src="js/map.js?v=6"></script>
 
-<!-- Google Maps (PUT YOUR REAL KEY; keep callback=initMap) -->
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async"
-  async defer></script>
+<!-- Google Maps (PUT YOUR REAL KEY) -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async" async defer></script>
 </body>
 </html>
