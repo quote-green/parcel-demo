@@ -246,8 +246,17 @@ async function setupAutocomplete() {
     try {
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
-      pac.style.width = "100%";
-      host.appendChild(pac); input.style.display = "none"; searchControlEl = pac;
+ // style + replace wrapper so there’s only one box
+styleSearchElement(pac);
+if (input && input.remove) input.remove();
+if (host && host.replaceWith) {
+  host.replaceWith(pac);
+} else {
+  host.appendChild(pac);
+}
+searchControlEl = pac;
+
+
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
         try {
@@ -272,6 +281,8 @@ async function setupAutocomplete() {
     const ac = new google.maps.places.Autocomplete(input, {
       types: ["address"], fields: ["formatted_address","geometry"]
     });
+     flattenSearchBox(host);     // remove outer wrapper styling
+  styleSearchElement(input);  // round corners + placeholder
     ac.addListener("place_changed", () => {
       const p = ac.getPlace(); if (!p || !p.geometry) return;
       moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
@@ -565,4 +576,30 @@ function extractOuterRing(g){
   if (g.type==="Polygon")      return c?.[0]||null;
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
+} 
+function flattenSearchBox(host){
+  // Remove the outer pill so we don't see a box-inside-a-box
+  if (!host) return;
+  host.style.border = "0";
+  host.style.padding = "0";
+  host.style.background = "transparent";
+  host.style.borderRadius = "0";
+  host.style.boxShadow = "none";
+} 
+function styleSearchElement(el) {
+  if (!el) return;
+  // visuals
+  el.style.display = "block";
+  el.style.width = "100%";
+  el.style.boxSizing = "border-box";
+  el.style.border = "2px solid #1f2937";
+  el.style.borderRadius = "999px";      // <- round corners (change to "12px" if you prefer)
+  el.style.padding = "10px 14px";
+  el.style.background = "#e5e7eb";
+  el.style.color = "#111827";
+  el.style.outline = "none";
+  // helper text
+  if ("placeholder" in el) {
+    el.placeholder = "Search address (street, city or full address)…";
+  }
 }
