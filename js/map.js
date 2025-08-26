@@ -2,7 +2,7 @@
 
 /* =================== CONFIG =================== */
 const API_BASE_URL = "";   // optional parcel API later
-const USE_PLACES   = true; // set false temporarily if Places 403s
+const USE_PLACES   = false; // set false temporarily if Places 403s
 
 /* =================== STATE =================== */
 let map, drawManager;
