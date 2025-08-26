@@ -1,39 +1,55 @@
-// js/map.js
+// js/map.js  (v5 — new Places dropdown + safe mount + legacy fallback)
 
-/* =================== CONFIG =================== */
-const API_BASE_URL = "";   // optional parcel API later
-const USE_PLACES   = false; // set false temporarily if Places 403s
+// ==== CONFIG (optional parcel API later) ====
+const API_BASE_URL = ""; // e.g. "https://your-vercel-app.vercel.app"
 
-/* =================== STATE =================== */
+// ==== STATE ====
 let map, drawManager;
 let lotPolygon = null;
 const turfPolygons = [];
 const undoStack = [];
 const redoStack = [];
 
-/* =================== MAP BOOT =================== */
-window.initMap = function initMap() {
-  map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat: 39.8283, lng: -98.5795 },
-    zoom: 4,
-    mapTypeId: "roadmap",
-    tilt: 0,
-    heading: 0,
-  });
-  keepOverhead(); lockOverhead();
+// ==== BOOT ====
+window.initMap = async function initMap() {
+  try {
+    // Load libs in a known-good order
+    await google.maps.importLibrary?.("maps");
+    await google.maps.importLibrary?.("geometry");
+    await google.maps.importLibrary?.("drawing");
+    try { await google.maps.importLibrary?.("places"); } catch (_) {}
 
-  setupAutocomplete();
-  setupDrawingTools();
-  say("Ready — search or draw.");
+    // Map
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 39.8283, lng: -98.5795 },
+      zoom: 4,
+      mapTypeId: "roadmap",
+      tilt: 0,
+      heading: 0,
+    });
+
+    keepOverhead();
+    lockOverhead();
+
+    // UI
+    await setupAutocompleteDropdown(); // new element → legacy → Enter fallback
+    setupDrawingTools();               // toolbar
+
+    say("Ready — start typing or press Enter.");
+    console.log("[init] complete");
+  } catch (e) {
+    console.error("[init] error:", e);
+    say("Map failed to initialize. Check console.");
+  }
 };
 
-/* =================== AUTOCOMPLETE =================== */
-async function setupAutocomplete() {
+// ==== AUTOCOMPLETE (new → legacy → Enter) ====
+async function setupAutocompleteDropdown() {
   const host  = document.querySelector(".search-box");
   const input = document.getElementById("address");
   if (!host || !input) return;
 
-  // Always support Enter-to-geocode
+  // Always: Enter-to-geocode on the classic input
   input.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -42,30 +58,37 @@ async function setupAutocomplete() {
     }
   });
 
-  if (!USE_PLACES) return;
-
-  try { await google.maps.importLibrary?.("places"); } catch (_) {}
+  // Prefer NEW Places element (works for new projects, avoids legacy deprecations)
   if (google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places) {
     try {
-      // @ts-ignore
       const pac = new google.maps.places.PlaceAutocompleteElement();
       pac.placeholder = input.placeholder || "Search address...";
       pac.style.width = "100%";
-      host.replaceChild(pac, input);
-      // @ts-ignore
+
+      // SAFE MOUNT: append first (don’t replace), then hide input to avoid observe(null)
+      host.appendChild(pac);
+      input.style.display = "none";
+
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
-        const place = placePrediction.toPlace();
-        await place.fetchFields({ fields: ["formattedAddress", "location", "viewport"] });
-        moveCamera(place.location, place.viewport);
-        if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
+        try {
+          const place = placePrediction.toPlace();
+          await place.fetchFields({ fields: ["formattedAddress", "location", "viewport"] });
+          moveCamera(place.location, place.viewport);
+          if (API_BASE_URL && place.formattedAddress) tryDrawParcel(place.formattedAddress);
+        } catch (err) {
+          console.warn("[places:new] select error:", err);
+        }
       });
-      say("Search ready (new Places).");
+
+      console.log("[places] new element ready");
+      say("Suggestions ready.");
       return;
     } catch (e) {
-      console.warn("New Places failed, trying legacy:", e);
+      console.warn("[places] new element failed; trying legacy:", e);
     }
   }
 
+  // Legacy Autocomplete fallback (works if your project still has legacy access)
   if (google?.maps?.places?.Autocomplete) {
     const ac = new google.maps.places.Autocomplete(input, {
       types: ["address"],
@@ -77,10 +100,17 @@ async function setupAutocomplete() {
       moveCamera(p.geometry.location, p.geometry.viewport);
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
-    say("Search ready (legacy Places).");
+    console.log("[places] legacy Autocomplete ready");
+    say("Suggestions ready.");
+    return;
   }
+
+  // If neither is available, Enter still works
+  console.warn("[places] no dropdown available; using Enter only");
+  say("Press Enter to geocode.");
 }
 
+// ==== GEOCODE / CAMERA ====
 async function geocode(q) {
   const g = new google.maps.Geocoder();
   return new Promise((resolve) => {
@@ -103,8 +133,14 @@ function moveCamera(location, viewport) {
   keepOverhead();
 }
 
-/* =================== DRAWING TOOLS =================== */
+// ==== DRAWING TOOLS ====
 function setupDrawingTools() {
+  if (!google?.maps?.drawing) {
+    console.error("[drawing] library missing");
+    say("Drawing tools unavailable — check script libraries.");
+    return;
+  }
+
   drawManager = new google.maps.drawing.DrawingManager({
     drawingControl: false,
     polygonOptions: { fillColor: "#22c55e55", strokeColor: "#16a34a", strokeWeight: 2 },
@@ -121,6 +157,8 @@ function setupDrawingTools() {
   bind("btnUndo", undo);
   bind("btnRedo", redo);
   bind("btnSave", saveGeoJSON);
+
+  console.log("[drawing] toolbar wired");
 }
 
 function startDrawingLot() {
@@ -128,7 +166,7 @@ function startDrawingLot() {
   google.maps.event.addListenerOnce(drawManager, "polygoncomplete", (poly) => {
     if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
     lotPolygon = poly;
-    poly.setOptions({ fillColor: "#00000000", strokeColor: "#ef4444", strokeWeight: 2 }); // red outline
+    poly.setOptions({ fillColor: "#0000", strokeColor: "#ef4444", strokeWeight: 2 }); // red outline
     attachPathListeners(poly);
     drawManager.setDrawingMode(null);
     pushAction({ type: "setLot", path: pathToLngLatArray(poly.getPath()) });
@@ -195,7 +233,7 @@ function resetAll() {
   updateAreas();
 }
 
-/* =================== UNDO / REDO =================== */
+// ==== UNDO / REDO ====
 function pushAction(a) { undoStack.push(a); redoStack.length = 0; }
 function undo() {
   const a = undoStack.pop(); if (!a) { say("Nothing to undo."); return; }
@@ -210,7 +248,7 @@ function undo() {
     turfPolygons.push(poly); attachPathListeners(poly);
     redoStack.push({ type: "deleteTurf", path: a.path });
   } else if (a.type === "deleteLot") {
-    lotPolygon = polygonFromPath(a.path, { fillColor:"#00000000", strokeColor:"#ef4444", strokeWeight:2 });
+    lotPolygon = polygonFromPath(a.path, { fillColor:"#0000", strokeColor:"#ef4444", strokeWeight:2 });
     attachPathListeners(lotPolygon);
     redoStack.push({ type: "deleteLot", path: a.path });
   }
@@ -224,7 +262,7 @@ function redo() {
     undoStack.push({ type: "addTurf", path: a.path });
   } else if (a.type === "setLot") {
     if (lotPolygon) lotPolygon.setMap(null);
-    lotPolygon = polygonFromPath(a.path, { fillColor:"#00000000", strokeColor:"#ef4444", strokeWeight:2 });
+    lotPolygon = polygonFromPath(a.path, { fillColor:"#0000", strokeColor:"#ef4444", strokeWeight:2 });
     attachPathListeners(lotPolygon);
     undoStack.push({ type: "setLot", path: a.path });
   } else if (a.type === "deleteTurf") {
@@ -237,7 +275,7 @@ function redo() {
   updateAreas(); say("Redid last action.");
 }
 
-/* =================== SAVE =================== */
+// ==== SAVE (GeoJSON) ====
 function saveGeoJSON() {
   const gj = { type: "FeatureCollection", features: [] };
   if (lotPolygon) gj.features.push(polygonToFeature(lotPolygon, { kind: "lot" }));
@@ -252,7 +290,7 @@ function saveGeoJSON() {
   say("Saved GeoJSON.");
 }
 
-/* =================== OPTIONAL PARCEL =================== */
+// ==== OPTIONAL PARCEL FETCH ====
 async function tryDrawParcel(formattedAddress) {
   if (!API_BASE_URL) { console.warn("Parcel fetch skipped: API_BASE_URL not set"); return; }
   try {
@@ -265,4 +303,56 @@ async function tryDrawParcel(formattedAddress) {
     if (geom) drawParcel(geom);
   } catch (e) { console.warn("Parcel fetch failed:", e?.message || e); }
 }
-function drawParcel(geometry)
+
+function drawParcel(geometry) {
+  if (lotPolygon) { lotPolygon.setMap(null); lotPolygon = null; }
+  const ring = extractOuterRing(geometry); if (!ring?.length) return;
+  const path = ring.map(([lng, lat]) => ({ lat, lng }));
+  lotPolygon = new google.maps.Polygon({ paths: path, map, strokeColor: "#ef4444", strokeWeight: 2, fillOpacity: 0 });
+  attachPathListeners(lotPolygon);
+  pushAction({ type: "setLot", path: path.map(p => [p.lng, p.lat]) });
+  fit(lotPolygon); updateAreas(); say("Parcel drawn — add turf polygons.");
+}
+
+// ==== HELPERS ====
+function keepOverhead(){ map.setMapTypeId("roadmap"); map.setHeading(0); map.setTilt(0); }
+function lockOverhead(){ map.addListener("tilt_changed",()=> map.getTilt()!==0 && map.setTilt(0)); map.addListener("heading_changed",()=> map.getHeading()!==0 && map.setHeading(0)); }
+function fit(poly){ const b=new google.maps.LatLngBounds(); poly.getPath().forEach(p=>b.extend(p)); map.fitBounds(b); keepOverhead(); }
+function updateAreas(){
+  const m2 = (poly) => google.maps.geometry.spherical.computeArea(poly.getPath());
+  const lot  = lotPolygon ? m2(lotPolygon) * 10.7639 : 0;
+  const turf = turfPolygons.reduce((s, p) => s + m2(p) * 10.7639, 0);
+  byId("lotSqft")  && (byId("lotSqft").value  = Math.round(lot));
+  byId("turfSqft") && (byId("turfSqft").value = Math.round(turf));
+}
+function attachPathListeners(poly){ const path=poly.getPath(); ["set_at","insert_at","remove_at"].forEach(ev=>path.addListener(ev, updateAreas)); }
+function bind(id, fn){ const el=byId(id); if(el) el.addEventListener("click", fn); }
+function byId(id){ return document.getElementById(id); }
+function say(t){ const el=byId("mapCaption"); if(el) el.textContent=t; }
+
+// GeoJSON utils
+function polygonToFeature(poly, props){
+  const coords = [ pathToLngLatArray(poly.getPath()) ];
+  return { type:"Feature", geometry:{ type:"Polygon", coordinates: coords }, properties: props || {} };
+}
+function pathToLngLatArray(path){
+  const arr=[]; for(let i=0;i<path.getLength();i++){ const p=path.getAt(i); arr.push([p.lng(),p.lat()]); }
+  const last = arr[arr.length-1]; const first = arr[0];
+  if (arr.length && (first[0] !== last[0] || first[1] !== last[1])) arr.push(first.slice());
+  return arr;
+}
+function polygonFromPath(lnglat, opts){ const path=lnglat.map(([lng,lat])=>({lat,lng})); return new google.maps.Polygon(Object.assign({ paths:path, map }, opts||{})); }
+function normalizePreciselyToGeoJSON(p){
+  if (p?.type==="FeatureCollection"||p?.type==="Feature") return p;
+  if (Array.isArray(p?.features)) return { type:"FeatureCollection", features:p.features };
+  if (p?.geometry?.type && p?.geometry?.coordinates) return { type:"Feature", geometry:p.geometry, properties:p.properties||{} };
+  return { type:"FeatureCollection", features:[] };
+}
+function pickFirstPolygon(gj){ const fs=gj?.type==="FeatureCollection"?gj.features:[gj]; const f=(fs||[]).find(x=>x?.geometry?.type?.includes("Polygon")); return f?f.geometry:null; }
+function extractOuterRing(g){
+  if(!g||!g.coordinates) return null; const c=g.coordinates;
+  if (g.type==="MultiPolygon") return c?.[0]?.[0]||null;
+  if (g.type==="Polygon")      return c?.[0]||null;
+  if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
+  return null;
+}
