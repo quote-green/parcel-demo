@@ -286,11 +286,23 @@ searchControlEl = pac;
     });
      flattenSearchBox(host);     // remove outer wrapper styling
   styleSearchElement(input);  // round corners + placeholder
-    ac.addListener('place_changed', () => {
-    const p = ac.getPlace(); if (!p || !p.geometry) return;
-    moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-    setSatellite();
+ac.addListener('place_changed', async () => {
+  const p = ac.getPlace(); if (!p || !p.geometry) return;
+  moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+  setSatellite();
+
+  const addr  = p.formatted_address || document.getElementById('address')?.value || '';
+  const focus = p.geometry.location; // keep this
+  if (addr) {
+    try {
+      const fc = await fetchParcelByAddress(addr);
+      if (fc?.features?.length) drawParcels(fc, focus); // pass focus
+    } catch (e) {
+      console.warn('Parcel fetch failed:', e?.message || e);
+    }
+  }
 });
+
 
      
   // ...
