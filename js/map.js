@@ -1,3 +1,5 @@
+// Precisely API base (your live Vercel URL)
+const API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
 /* js/map.js  — full file
    - Google Maps + Places Autocomplete (legacy input#address)
    - Precisely parcel fetch via your Vercel API
@@ -86,36 +88,38 @@ window.initMap = function initMap() {
     });
 
     // Replace any existing listener — we keep exactly one
-    ac.addListener("place_changed", async () => {
-      const p = ac.getPlace();
-      if (!p || !p.geometry) return;
+    ac.addListener('place_changed', async () => {
+  const p = ac.getPlace(); 
+  if (!p || !p.geometry) return;
 
-      // Camera: center/zoom, then satellite overhead (no oblique)
-      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-      setSatellite();
+  // camera + satellite
+  moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+  setSatellite();
 
-      // Marker at selected point
-      marker.setPosition(p.geometry.location);
-      marker.setVisible(true);
+  // fetch parcels for the chosen address
+  const addr = p.formatted_address || document.getElementById('address')?.value || '';
+  if (!addr) return;
 
-      // Fetch + draw parcel(s)
-      const addr = p.formatted_address || input.value || "";
-      const focus = p.geometry.location;
-      if (addr) {
-        try {
-          const fc = await fetchParcelByAddress(addr);
-          if (fc?.features?.length) {
-            drawParcels(fc, focus);
-            snapshot();
-          } else {
-            say("No parcel found for that address.");
-          }
-        } catch (e) {
-          console.warn("Parcel fetch failed:", e?.message || e);
-          say("Could not load parcel — try another address.");
-        }
-      }
-    });
+  try {
+    const fc = await fetchParcelByAddress(addr); // FeatureCollection
+    const feats = Array.isArray(fc?.features) ? fc.features : [];
+    if (!feats.length) return;
+
+    // choose the parcel that contains the selected point, otherwise keep the first
+    const focus = p.geometry.location;
+    let chosen = feats[0];
+    for (const f of feats) {
+      if (containsPoint(geometryToPath(f.geometry), focus)) { chosen = f; break; }
+    }
+
+    // draw the chosen parcel (single red outline)
+    drawSingleParcel(chosen.geometry);
+
+  } catch (e) {
+    console.warn("Parcel fetch failed:", e?.message || e);
+  }
+});
+
   } else {
     console.warn("Places library not loaded or #address missing.");
   }
@@ -586,6 +590,73 @@ function saveGeoJSON() {
   URL.revokeObjectURL(url);
   say("Saved measurements.geojson");
 }
+// --- Precisely: fetch (FeatureCollection) ---
+async function fetchParcelByAddress(address) {
+  if (!API_BASE_URL) throw new Error("Set API_BASE_URL to your Vercel app URL");
+  const url = `${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(address)}`;
+  const res = await fetch(url, { headers: { "Accept": "application/json" } });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return await res.json();
+}
+
+// --- Draw exactly one parcel polygon in red ---
+let parcelPolygon = (typeof parcelPolygon !== "undefined") ? parcelPolygon : null;
+function drawSingleParcel(geom) {
+  // clear any old
+  if (parcelPolygon) { parcelPolygon.setMap(null); parcelPolygon = null; }
+
+  const path = geometryToPath(geom); // [{lat,lng},...]
+  if (!path.length) return;
+
+  parcelPolygon = new google.maps.Polygon({
+    paths: path,
+    map,
+    strokeColor: "#ef4444",
+    strokeWeight: 3,
+    strokeOpacity: 1,
+    fillOpacity: 0
+  });
+
+  // fit bounds
+  const b = new google.maps.LatLngBounds();
+  path.forEach(pt => b.extend(pt));
+  map.fitBounds(b, 40);
+
+  // optional: write Lot sq ft if you have #lotSqft
+  try {
+    const sqft = computeSqft([path]);
+    const lotEl = document.getElementById("lotSqft");
+    if (lotEl && Number.isFinite(sqft)) lotEl.value = Math.round(sqft);
+  } catch {}
+}
+
+// --- Geometry utilities ---
+function geometryToPath(geom) {
+  // Returns first outer ring as [{lat,lng}, ...]
+  if (!geom) return [];
+  if (geom.type === "Polygon") {
+    const ring = geom.coordinates?.[0] || [];
+    return ring.map(([lng,lat]) => ({ lat, lng }));
+  }
+  if (geom.type === "MultiPolygon") {
+    const ring = geom.coordinates?.[0]?.[0] || [];
+    return ring.map(([lng,lat]) => ({ lat, lng }));
+  }
+  return [];
+}
+
+function containsPoint(path, latLng) {
+  if (!path?.length || !latLng) return false;
+  const poly = new google.maps.Polygon({ paths: path });
+  return google.maps.geometry.poly.containsLocation(latLng, poly) ||
+         google.maps.geometry.poly.isLocationOnEdge(latLng, poly, 1e-6);
+}
+
+function computeSqft(paths) {
+  const m2 = paths.reduce((sum, ring) => sum + google.maps.geometry.spherical.computeArea(ring), 0);
+  return m2 * 10.7639;
+}
+
 
 function polygonToGeoJSON(poly) {
   const paths = poly.getPaths();
