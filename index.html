@@ -4,16 +4,38 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Search + Measure</title>
-  <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">
+
+  <!-- (Optional) Your external CSS -->
   <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Minimal inline CSS so the map is always visible -->
+  <style>
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#f8fafc;color:#0f172a}
+    .page{max-width:1400px;margin:40px auto;padding:0 20px;display:grid;grid-template-columns:1fr 1.5fr;gap:24px}
+    @media (max-width:900px){.page{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.08);padding:20px}
+    .search-box{display:flex;gap:10px;border:2px solid #1f2937;border-radius:999px;padding:10px 14px;background:#e5e7eb}
+    .search-box input[type="search"]{flex:1;border:none;outline:none;font-size:16px;background:transparent;color:#111827}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{font-size:13px;color:#64748b;display:block;margin-bottom:6px}
+    input[type=text],input[type=email],input[type=tel],input[type=number],select{width:100%;padding:12px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;background:#fff}
+    .checkbox-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+    .btn{width:100%;padding:14px 16px;border:0;border-radius:12px;font-weight:600;font-size:16px;cursor:pointer}
+    .btn-primary{background:#22c55e;color:#fff}.btn-primary:hover{background:#16a34a}
+    .btn-secondary{background:#22c55e;color:#fff}.btn-secondary:hover{background:#16a34a}
+    .map-card{display:flex;gap:10px;min-height:520px}
+    .map-box{position:relative;flex:1;min-height:520px;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden}
+    #map{position:absolute;inset:0;min-height:520px}
+    #mapCaption{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:10px;font-size:13px;color:#334155}
+    .tools{width:84px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:14px;background:#f9f9f9;display:flex;flex-direction:column;gap:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.08);height:fit-content}
+    .tools button{width:100%;padding:10px 8px;font-size:13px;background:#fff;border:1px solid #ccc;border-radius:8px;cursor:pointer}
+    .tools button:hover{background:#eee}
+    .tools .btn-green{background:#22c55e;color:#fff;border:1px solid #16a34a}
+    .tools .btn-green:hover{background:#16a34a}
+  </style>
 </head>
 <body>
-<div style="position:fixed;z-index:99999;top:8px;left:8px;background:#fffb00;padding:6px 10px;border:1px solid #111;font:12px/1 monospace">
-  SPLIT 1030
-</div>
-
 <main class="page">
-  <!-- Left: Search + Contact -->
   <section class="card" aria-label="Search and contact">
     <div class="search-box">
       <input id="address" name="address" type="search" placeholder="Search address..." autocomplete="off" required aria-label="Search for an address" />
@@ -23,28 +45,28 @@
       <div class="grid-2" style="margin-top:12px;">
         <div>
           <label for="firstName">First Name</label>
-          <input id="firstName" name="firstName" type="text" autocomplete="given-name">
+          <input id="firstName" name="firstName" type="text" required autocomplete="given-name">
         </div>
         <div>
           <label for="lastName">Last Name</label>
-          <input id="lastName" name="lastName" type="text" autocomplete="family-name">
+          <input id="lastName" name="lastName" type="text" required autocomplete="family-name">
         </div>
       </div>
 
       <div class="grid-2" style="margin-top:12px;">
         <div>
           <label for="phone">Phone</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
+          <input id="phone" name="phone" type="tel" inputmode="tel" required autocomplete="tel">
         </div>
         <div>
           <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email">
+          <input id="email" name="email" type="email" required autocomplete="email">
         </div>
       </div>
 
       <div style="margin-top:12px;">
         <label for="referrer">How did you find us?</label>
-        <select id="referrer" name="referrer">
+        <select id="referrer" name="referrer" required>
           <option value="" disabled selected>Select one...</option>
           <option>Google</option>
           <option>Friend</option>
@@ -55,11 +77,11 @@
       </div>
 
       <div class="checkbox-row">
-        <input id="smsConsent" name="smsConsent" type="checkbox">
+        <input id="smsConsent" name="smsConsent" type="checkbox" required>
         <label for="smsConsent">Permission to contact you on this phone number</label>
       </div>
 
-      <div class="half-inch-gap pair">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
         <div>
           <label for="lotSqft">Lot sq ft</label>
           <input id="lotSqft" name="lotSqft" type="number" min="0" step="1">
@@ -70,16 +92,15 @@
         </div>
       </div>
 
-      <div class="half-inch-gap"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
-      <div class="half-inch-gap"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
+      <div style="margin-top:12px;"><button id="measureBtn" type="button" class="btn btn-primary">Measure Now</button></div>
+      <div style="margin-top:12px;"><button id="continueBtn" type="submit" class="btn btn-secondary">Continue</button></div>
     </form>
   </section>
 
-  <!-- Right: Map + Tools -->
   <section class="card map-card" aria-label="Map">
-    <div class="map-box" id="mapBox">
+    <div class="map-box">
       <div id="map"></div>
-      <div id="mapCaption">Start typing or press Enter</div>
+      <div id="mapCaption">Search an address to begin.</div>
     </div>
 
     <nav class="tools" aria-label="Map tools">
@@ -91,24 +112,19 @@
       <button id="btnUndo">Undo</button>
       <button id="btnRedo">Redo</button>
       <button id="btnSave">Save</button>
-      <button id="btnSearchAgain" class="btn-green">Search Again</button>
+      <button id="btnSearchAgain" class="btn-green" title="Start a new search">Search Again</button>
     </nav>
   </section>
 </main>
 
-<!-- Load your app code BEFORE the Google callback runs -->
-
-<!-- Google Maps (PUT YOUR REAL KEY; keep places for dropdown) -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async" async defer></script>
-  <!-- Your app code (must come first) -->
+<!-- Your app code (must load BEFORE Google Maps) -->
 <script src="js/map.js?v=13"></script>
 
-<!-- Google Maps JS (must come after, with the callback) -->
+<!-- Google Maps (replace YOUR_KEY with your actual key) -->
 <script
-  src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&libraries=places,drawing,geometry&callback=initMap&loading=async"
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjk7r8xx7DX7MZRwdSVAk7C5CwleF0OWY&libraries=places,drawing,geometry&callback=initMap&loading=async"
   async
   defer
 ></script>
-
 </body>
 </html>
