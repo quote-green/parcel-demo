@@ -7,7 +7,7 @@
 
   let map, ac, marker;
 
-  // Attach only ONE global: the Google callback
+  // Google callback (define exactly once)
   window.initMap = function initMap() {
     // Base map
     map = new google.maps.Map(document.getElementById("map"), {
@@ -25,7 +25,7 @@
 
     marker = new google.maps.Marker({ map, visible: false });
 
-    // Wire "Search Again" if present
+    // "Search Again" button (optional)
     const again = document.getElementById("btnSearchAgain");
     if (again) {
       again.addEventListener("click", (e) => {
@@ -34,7 +34,7 @@
       });
     }
 
-    // Places Autocomplete on legacy input#address
+    // Places Autocomplete on #address
     const input = document.getElementById("address");
     if (!input || !google.maps.places) {
       console.warn("Missing #address or Places library");
@@ -47,7 +47,6 @@
       fields: ["formatted_address", "geometry"],
     });
 
-    // Single, async listener
     ac.addListener("place_changed", async () => {
       const p = ac.getPlace();
       if (!p || !p.geometry) return;
