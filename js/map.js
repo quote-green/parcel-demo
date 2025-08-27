@@ -290,6 +290,13 @@ searchControlEl = pac;
       const p = ac.getPlace(); if (!p || !p.geometry) return;
       moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
       setSatellite();
+      ac.addListener('place_changed', () => {
+  const p = ac.getPlace(); if (!p || !p.geometry) return;
+  moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+  setSatellite();
+  // ...
+});
+
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
     searchControlEl = input;
