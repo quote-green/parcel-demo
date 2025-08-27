@@ -191,28 +191,32 @@
   }
   function setVal(id,v){const el=document.getElementById(id); if(el) el.value=v;}
   function setCheck(id,v){const el=document.getElementById(id); if(el&&"checked" in el) el.checked=!!v;}
-  // --- Form validation wiring ---
-const form = document.getElementById("contactForm");
-const continueBtn = document.getElementById("continueBtn");
+ // --- Form validation wiring (runs when DOM is ready) ---
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("contactForm");
+  const continueBtn = document.getElementById("continueBtn");
+  if (!form || !continueBtn) return;
 
-if (form && continueBtn) {
-  const update = () => {
-    continueBtn.disabled = !form.checkValidity();
-  };
+  // Make sure the button does NOT submit the form (prevents page refresh)
+  continueBtn.type = "button";
+
+  // Disable until valid
+  const update = () => { continueBtn.disabled = !form.checkValidity(); };
   form.addEventListener("input", update);
   form.addEventListener("change", update);
   update();
 
-  form.addEventListener("submit", (e) => {
+  // On click, either show what's missing or proceed
+  continueBtn.addEventListener("click", (e) => {
+    e.preventDefault();
     if (!form.checkValidity()) {
-      e.preventDefault();
-      form.reportValidity(); // shows the browser's tooltip on the first invalid field
+      form.reportValidity(); // shows native tooltip on the first invalid field
       return;
     }
-    e.preventDefault(); // handle your submit here (no page reload)
-    say("Thanks — we’ll follow up shortly.");
+    // ✅ Form is valid — do your submit/next-step here instead of reloading
+    // e.g., send to backend or just confirm:
+    const sayEl = document.getElementById("mapCaption");
+    if (sayEl) sayEl.textContent = "Thanks — we’ll follow up shortly.";
   });
-}
+});
 
-
-})();
