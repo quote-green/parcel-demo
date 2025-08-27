@@ -5,6 +5,8 @@
 const API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
 
 let map, drawMgr;
+let parcelPolygon = null;          // the main parcel outline
+let neighborPolygons = [];         // adjacent parcel outlines
 let lotPolygon = null;
 const turfPolys = [];
 const undoStack = [];
