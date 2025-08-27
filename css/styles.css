@@ -37,13 +37,14 @@ input[type=text],input[type=email],input[type=tel],input[type=number],select{wid
 input:invalid, select:invalid{border-color:#fca5a5}
 /* Required field styling */
 input[required]:invalid,
-select[required]:invalid {
-  border-color: #ef4444 !important; /* red */
-}
+select[required]:invalid { border-color:#ef4444 !important; } /* red */
 input[required]:valid,
-select[required]:valid {
-  border-color: #22c55e;            /* green */
-}
+select[required]:valid   { border-color:#22c55e; }             /* green */
+
+/* Checkbox label turns red until checked */
+.checkbox-row input[type=checkbox][required]:invalid + label { color:#ef4444; }
+.checkbox-row input[type=checkbox][required]:valid + label   { color:inherit; }
+
 
 /* Checkbox required hint (label turns red until checked) */
 .checkbox-row input[type=checkbox][required]:invalid + label {
