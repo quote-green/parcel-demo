@@ -286,14 +286,13 @@ searchControlEl = pac;
     });
      flattenSearchBox(host);     // remove outer wrapper styling
   styleSearchElement(input);  // round corners + placeholder
-    ac.addListener("place_changed", () => {
-      const p = ac.getPlace(); if (!p || !p.geometry) return;
-      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-      setSatellite();
-      ac.addListener('place_changed', () => {
-  const p = ac.getPlace(); if (!p || !p.geometry) return;
-  moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-  setSatellite();
+    ac.addListener('place_changed', () => {
+    const p = ac.getPlace(); if (!p || !p.geometry) return;
+    moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+    setSatellite();
+});
+
+     
   // ...
 });
 
