@@ -1,9 +1,12 @@
 // js/map.js  (SAFE COMPACT v8 — required fields enforced + no refresh + satellite)
 // Requires: your current index.html. Search Again still hard-reloads.
 
-const API_BASE_URL = ""; // optional parcel API later
+// AT THE TOP
+const API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
 
 let map, drawMgr;
+let parcelPolygon = null;          // the main parcel outline
+let neighborPolygons = [];         // adjacent parcel outlines
 let lotPolygon = null;
 const turfPolys = [];
 const undoStack = [];
@@ -283,10 +286,16 @@ searchControlEl = pac;
     });
      flattenSearchBox(host);     // remove outer wrapper styling
   styleSearchElement(input);  // round corners + placeholder
-    ac.addListener("place_changed", () => {
-      const p = ac.getPlace(); if (!p || !p.geometry) return;
-      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-      setSatellite();
+    ac.addListener('place_changed', () => {
+    const p = ac.getPlace(); if (!p || !p.geometry) return;
+    moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+    setSatellite();
+});
+
+     
+  // ...
+});
+
       if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
     });
     searchControlEl = input;
@@ -602,4 +611,77 @@ function styleSearchElement(el) {
   if ("placeholder" in el) {
     el.placeholder = "Search address (street, city or full address)…";
   }
+  // === Parcel API integration START ===
+
+async function fetchParcelByAddress(address) {
+  if (!API_BASE_URL) throw new Error("Set API_BASE_URL to your Vercel app URL");
+  const url = `${API_BASE_URL}/api/parcel-by-address?address=${encodeURIComponent(address)}`;
+  const res = await fetch(url, { headers: { "Accept": "application/json" } });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return await res.json(); // FeatureCollection
+}
+
+function drawParcels(featureCollection) {
+  // Clear old
+  if (parcelPolygon) { parcelPolygon.setMap(null); parcelPolygon = null; }
+  neighborPolygons.forEach(p => p.setMap(null));
+  neighborPolygons.length = 0;
+
+  const feats = Array.isArray(featureCollection?.features) ? featureCollection.features : [];
+  if (!feats.length) return;
+
+  const bounds = new google.maps.LatLngBounds();
+  let primaryArea = null;
+
+  feats.forEach(f => {
+    const isAdj = !!f.properties?.isAdjacent;
+    const paths = geometryToPaths(f.geometry); // [[{lat,lng},...], ...]
+    if (!paths.length) return;
+
+    const poly = new google.maps.Polygon({
+      paths,
+      map,
+      strokeColor: isAdj ? "#64748b" : "#ef4444",
+      strokeOpacity: isAdj ? 0.7 : 1,
+      strokeWeight: isAdj ? 2 : 3,
+      fillOpacity: 0
+    });
+
+    paths.forEach(ring => ring.forEach(pt => bounds.extend(pt)));
+
+    if (!isAdj && !parcelPolygon) {
+      parcelPolygon = poly;
+      primaryArea = Number(f.properties?.areaSqFt) || computeSqft(paths);
+    } else {
+      neighborPolygons.push(poly);
+    }
+  });
+
+  if (!bounds.isEmpty()) map.fitBounds(bounds, 40);
+
+  const lotEl = document.getElementById("lotSqft");
+  if (lotEl && primaryArea) lotEl.value = Math.round(primaryArea);
+
+  const cap = document.getElementById("mapCaption");
+  if (cap) cap.textContent = "Parcel boundary drawn — you can outline turf next.";
+}
+
+function geometryToPaths(geom) {
+  if (!geom) return [];
+  if (geom.type === "Polygon") {
+    return [ (geom.coordinates?.[0] || []).map(([lng,lat]) => ({ lat, lng })) ];
+  }
+  if (geom.type === "MultiPolygon") {
+    return (geom.coordinates || []).map(rings => (rings?.[0] || []).map(([lng,lat]) => ({ lat, lng })));
+  }
+  return [];
+}
+
+function computeSqft(paths) {
+  const m2 = paths.reduce((sum, ring) => sum + google.maps.geometry.spherical.computeArea(ring), 0);
+  return m2 * 10.7639;
+}
+
+// === Parcel API integration END ===
+
 }
