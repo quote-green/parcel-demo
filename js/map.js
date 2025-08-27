@@ -1,7 +1,8 @@
 // js/map.js  (SAFE COMPACT v8 — required fields enforced + no refresh + satellite)
 // Requires: your current index.html. Search Again still hard-reloads.
 
-const API_BASE_URL = ""; // optional parcel API later
+// AT THE TOP
+const API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
 
 let map, drawMgr;
 let lotPolygon = null;
