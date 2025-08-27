@@ -1,15 +1,15 @@
-
-// js/map.js — minimal, stable, no duplicate-globals
+// js/map.js — stable build: map + autocomplete + parcel + required-fields UX
 (() => {
   "use strict";
 
-  // One-time global base URL for your Vercel API
+  // One-time global for your Vercel API
   if (!window.API_BASE_URL) window.API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
 
   let map, ac, marker;
 
-  // Google callback
+  // Google callback (must exist once)
   window.initMap = function initMap() {
+    // --- Base map ---
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 37.773972, lng: -122.431297 },
       zoom: 13,
@@ -25,14 +25,14 @@
 
     marker = new google.maps.Marker({ map, visible: false });
 
-    // Search Again
+    // --- Form UX: make Continue a controlled button (no page reload) ---
+    setupFormValidation();
+
+    // --- “Search Again” (optional) ---
     const again = document.getElementById("btnSearchAgain");
     if (again) again.addEventListener("click", (e) => { e.preventDefault(); resetApp(true); });
 
-    // Measure Now (optional: just set satellite so user can draw)
-    const measureBtn = document.getElementById("measureBtn");
-    if (measureBtn) measureBtn.addEventListener("click", () => { setSatellite(); });
-
+    // --- Autocomplete on #address ---
     const input = document.getElementById("address");
     if (!input || !google.maps.places) {
       console.warn("Missing #address or Places library");
@@ -49,12 +49,14 @@
       const p = ac.getPlace();
       if (!p || !p.geometry) return;
 
+      // Camera + satellite overhead
       moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
       setSatellite();
 
       marker.setPosition(p.geometry.location);
       marker.setVisible(true);
 
+      // Fetch parcel(s) from your API
       const addr = p.formatted_address || input.value || "";
       if (!addr) return;
 
@@ -63,8 +65,10 @@
         const feats = Array.isArray(fc?.features) ? fc.features : [];
         if (!feats.length) { say("No parcel found for that address."); return; }
 
-        const focus = p.geometry.location;
-        const chosen = chooseBestFeature(feats, focus);
+        // Choose parcel that contains the selected point; fallback to nearest centroid
+        const chosen = chooseBestFeature(feats, p.geometry.location);
+
+        // Draw one red parcel outline
         drawSingleParcel(chosen.geometry);
 
         say("Parcel boundary drawn — outline turf if needed.");
@@ -77,7 +81,7 @@
     say("Search an address to begin.");
   };
 
-  // Camera / UI helpers
+  // ---------- Camera / UI ----------
   function moveCamera(point, viewport, fallbackZoom = 18) {
     if (viewport) {
       map.fitBounds(viewport);
@@ -90,7 +94,32 @@
   function setSatellite() { map.setMapTypeId("satellite"); map.setTilt(0); map.setHeading(0); }
   function say(msg) { const el = document.getElementById("mapCaption"); if (el) el.textContent = msg; }
 
-  // Precisely API
+  // ---------- Form validation (no refresh; show what’s missing) ----------
+  function setupFormValidation() {
+    const form = document.getElementById("contactForm");
+    const btn = document.getElementById("continueBtn");
+    if (!form || !btn) return;
+
+    // Prevent default submit refresh; we manage it in JS
+    btn.type = "button";
+
+    const update = () => { btn.disabled = !form.checkValidity(); };
+    form.addEventListener("input", update);
+    form.addEventListener("change", update);
+    update();
+
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity(); // native tooltip on the first invalid field
+        return;
+      }
+      // ✅ All good — do your next step here (no page reload)
+      say("Thanks — we’ll follow up shortly.");
+    });
+  }
+
+  // ---------- Precisely API ----------
   async function fetchParcelByAddress(address) {
     const base = window.API_BASE_URL;
     if (!base) throw new Error("Set API_BASE_URL to your Vercel app URL");
@@ -100,18 +129,24 @@
     return await res.json();
   }
 
-  // Keep polygon on map object (no global collisions)
-  function setParcelPolygon(poly) { if (map && map.__parcelPolygon) map.__parcelPolygon.setMap(null); if (map) map.__parcelPolygon = poly || null; }
-  function getParcelPolygon() { return map ? map.__parcelPolygon || null : null; }
-
+  // ---------- Draw ONE parcel (stored on map to avoid global collisions) ----------
+  function setParcelPolygon(poly) {
+    if (map && map.__parcelPolygon) map.__parcelPolygon.setMap(null);
+    if (map) map.__parcelPolygon = poly || null;
+  }
   function drawSingleParcel(geom) {
     setParcelPolygon(null);
+
     const path = geometryToPath(geom);
     if (!path.length) return;
 
     const poly = new google.maps.Polygon({
-      paths: path, map,
-      strokeColor: "#ef4444", strokeWeight: 3, strokeOpacity: 1, fillOpacity: 0
+      paths: path,
+      map,
+      strokeColor: "#ef4444",
+      strokeWeight: 3,
+      strokeOpacity: 1,
+      fillOpacity: 0,
     });
     setParcelPolygon(poly);
 
@@ -126,14 +161,17 @@
     }
   }
 
-  // Feature selection (contains point → nearest centroid)
+  // ---------- Feature selection (correct lot) ----------
   function chooseBestFeature(features, focusLatLng) {
     if (!features?.length) return null;
     if (!focusLatLng) return features[0];
+
+    // (a) contains the point
     for (const f of features) {
       const path = geometryToPath(f.geometry);
       if (path.length && containsPoint(path, focusLatLng)) return f;
     }
+    // (b) nearest centroid
     let best = features[0], bestD = Infinity;
     for (const f of features) {
       const c = centroidOfPath(geometryToPath(f.geometry));
@@ -146,7 +184,7 @@
     return best;
   }
 
-  // Geometry helpers
+  // ---------- Geometry helpers ----------
   function geometryToPath(geom) {
     if (!geom) return [];
     if (geom.type === "Polygon") {
@@ -162,13 +200,15 @@
   function containsPoint(path, latLng) {
     if (!path?.length || !latLng) return false;
     const poly = new google.maps.Polygon({ paths: path });
-    return google.maps.geometry.poly.containsLocation(latLng, poly) ||
-           google.maps.geometry.poly.isLocationOnEdge(latLng, poly, 1e-6);
+    return (
+      google.maps.geometry.poly.containsLocation(latLng, poly) ||
+      google.maps.geometry.poly.isLocationOnEdge(latLng, poly, 1e-6)
+    );
   }
   function centroidOfPath(path) {
     if (!path?.length) return null;
     let sx = 0, sy = 0;
-    path.forEach(p => { sx += p.lat; sy += p.lng; });
+    path.forEach((p) => { sx += p.lat; sy += p.lng; });
     const n = path.length || 1;
     return { lat: sx / n, lng: sy / n };
   }
@@ -177,20 +217,59 @@
     return m2 * 10.7639;
   }
 
-  // Reset (Search Again)
+  // ---------- Reset (Search Again) ----------
   function resetApp(keepForm) {
     setParcelPolygon(null);
     if (marker) marker.setVisible(false);
+
     if (!keepForm) {
-      setVal("lotSqft",""); setVal("turfSqft",""); setCheck("smsConsent", false);
+      setVal("lotSqft", ""); setVal("turfSqft", ""); setCheck("smsConsent", false);
       const f = document.getElementById("contactForm"); f?.reset?.();
-    } else { setVal("turfSqft",""); }
-    const input = document.getElementById("address"); if (input) { input.value=""; input.focus(); }
+    } else {
+      setVal("turfSqft", "");
+    }
+
+    const input = document.getElementById("address");
+    if (input) { input.value = ""; input.focus(); }
+
     map.setMapTypeId("roadmap");
-    map.setCenter({ lat: 37.773972, lng: -122.431297 }); map.setZoom(13);
+    map.setCenter({ lat: 37.773972, lng: -122.431297 });
+    map.setZoom(13);
     say("Search an address to begin.");
   }
-  function setVal(id,v){const el=document.getElementById(id); if(el) el.value=v;}
-  function setCheck(id,v){const el=document.getElementById(id); if(el&&"checked" in el) el.checked=!!v;}
+  function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+  function setCheck(id, v) { const el = document.getElementById(id); if (el && "checked" in el) el.checked = !!v; }
+// --- Required-fields UX: prevent refresh, show what's missing ---
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("contactForm");
+  const btn  = document.getElementById("continueBtn");
+  if (!form || !btn) return;
+
+  // Make sure this is NOT a submit button (prevents page reload)
+  btn.type = "button";
+
+  // Disable button until the form is valid
+  const update = () => { btn.disabled = !form.checkValidity(); };
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
+  update(); // initial state
+
+  // On click: either show the native tooltip on the first invalid field, or proceed
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!form.checkValidity()) {
+      form.reportValidity(); // shows the browser's message
+      const firstInvalid = form.querySelector(":invalid");
+      if (firstInvalid) {
+        firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+        firstInvalid.focus({ preventScroll: true });
+      }
+      return;
+    }
+    // ✅ All fields valid — put your submit/next-step here
+    const cap = document.getElementById("mapCaption");
+    if (cap) cap.textContent = "Thanks — we’ll follow up shortly.";
+  });
+});
 
 })();
