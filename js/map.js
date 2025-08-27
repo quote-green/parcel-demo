@@ -239,5 +239,37 @@
   }
   function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
   function setCheck(id, v) { const el = document.getElementById(id); if (el && "checked" in el) el.checked = !!v; }
+// --- Required-fields UX: prevent refresh, show what's missing ---
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("contactForm");
+  const btn  = document.getElementById("continueBtn");
+  if (!form || !btn) return;
+
+  // Make sure this is NOT a submit button (prevents page reload)
+  btn.type = "button";
+
+  // Disable button until the form is valid
+  const update = () => { btn.disabled = !form.checkValidity(); };
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
+  update(); // initial state
+
+  // On click: either show the native tooltip on the first invalid field, or proceed
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!form.checkValidity()) {
+      form.reportValidity(); // shows the browser's message
+      const firstInvalid = form.querySelector(":invalid");
+      if (firstInvalid) {
+        firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+        firstInvalid.focus({ preventScroll: true });
+      }
+      return;
+    }
+    // ✅ All fields valid — put your submit/next-step here
+    const cap = document.getElementById("mapCaption");
+    if (cap) cap.textContent = "Thanks — we’ll follow up shortly.";
+  });
+});
 
 })();
