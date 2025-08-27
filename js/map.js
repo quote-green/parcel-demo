@@ -1,5 +1,7 @@
 // Precisely API base (your live Vercel URL)
-const API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
+// Avoid duplicate-declaration crashes if the script is included twice
+if (!window.API_BASE_URL) window.API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
+
 /* js/map.js  — full file
    - Google Maps + Places Autocomplete (legacy input#address)
    - Precisely parcel fetch via your Vercel API
