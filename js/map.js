@@ -191,5 +191,28 @@
   }
   function setVal(id,v){const el=document.getElementById(id); if(el) el.value=v;}
   function setCheck(id,v){const el=document.getElementById(id); if(el&&"checked" in el) el.checked=!!v;}
+  // --- Form validation wiring ---
+const form = document.getElementById("contactForm");
+const continueBtn = document.getElementById("continueBtn");
+
+if (form && continueBtn) {
+  const update = () => {
+    continueBtn.disabled = !form.checkValidity();
+  };
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
+  update();
+
+  form.addEventListener("submit", (e) => {
+    if (!form.checkValidity()) {
+      e.preventDefault();
+      form.reportValidity(); // shows the browser's tooltip on the first invalid field
+      return;
+    }
+    e.preventDefault(); // handle your submit here (no page reload)
+    say("Thanks — we’ll follow up shortly.");
+  });
+}
+
 
 })();
