@@ -1,3 +1,8 @@
+// ===== ONE-TIME GLOBALS (guards) =====
+if (!window.API_BASE_URL) window.API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
+if (typeof window.parcelPolygon === "undefined") window.parcelPolygon = null;
+if (typeof window.neighborPolygons === "undefined") window.neighborPolygons = [];
+
 // js/map.js (minimal, stable)
 // Guard against duplicate inclusion
 if (!window.API_BASE_URL) window.API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
