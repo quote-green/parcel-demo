@@ -1,4 +1,5 @@
-// js/map.js  (POLISH 1110 — restore dropdown, enforce required, phone mask, green ✓, satellite)
+// js/map.js  (SAFE COMPACT v8 — required fields enforced + no refresh + satellite)
+// Requires: your current index.html. Search Again still hard-reloads.
 
 const API_BASE_URL = ""; // optional parcel API later
 
@@ -7,7 +8,7 @@ let lotPolygon = null;
 const turfPolys = [];
 const undoStack = [];
 const redoStack = [];
-let searchControlEl = null;
+let searchControlEl = null; // <gmp-place-autocomplete> or <input id="address">
 
 // ---------- BOOT ----------
 window.initMap = async function initMap() {
@@ -28,14 +29,14 @@ window.initMap = async function initMap() {
       heading: 0
     });
 
-    enforceSatellite();
-    keepOverhead();
-    lockOverhead();
+    enforceSatellite(); // keep type = satellite
+    keepOverhead();     // keep tilt/heading = 0
+    lockOverhead();     // prevent tilt/heading changes
 
     ensureLeftPaneAndForm();   // contact form + required + submit logic
     await setupAutocomplete(); // dropdown + Enter fallback
-    ensureToolbar();           // map tools
-    setupDrawingTools();       // events
+    ensureToolbar();           // ensure map tools
+    setupDrawingTools();       // wire events
 
     say("Ready — start typing or press Enter.");
     console.log("[OK] map init (satellite forced)");
@@ -60,7 +61,7 @@ function setSatellite() {
   keepOverhead();
 }
 
-// ---------- LEFT PANE & FORM ----------
+// ---------- BUILD/RESTORE LEFT PANE + REQUIRED ----------
 function ensureLeftPaneAndForm(){
   const page = document.querySelector(".page");
   if (!page) return;
@@ -122,6 +123,7 @@ function ensureLeftPaneAndForm(){
     leftCard.appendChild(form);
   }
 
+  // REQUIRED + client-side validation wiring
   enforceRequiredFields(form);
   setupFormValidation(form);
 }
@@ -138,142 +140,99 @@ function enforceRequiredFields(form){
 
   req("#firstName");
   req("#lastName");
-  req("#email"); // native email validation
+  req("#email"); // type=email handles format
   req("#phone", (el) => {
-    el.pattern = "\\d{3}-\\d{3}-\\d{4}";
-    el.title = "Use a 10-digit phone, e.g., 555-123-4567.";
+    el.pattern = "[0-9\\-+() .]{7,}";
+    el.title = "Please enter a valid phone number (at least 7 digits).";
   });
   req("#referrer");
   req("#smsConsent", (el) => { el.required = true; });
 }
 
 function setupFormValidation(form){
-  injectCheckStyles();
+  // Remove novalidate to allow native checks
+  form.removeAttribute("novalidate");
 
-  const watchSel = ["#firstName","#lastName","#email","#phone","#referrer","#smsConsent"];
-  watchSel.forEach(sel => { const el=form.querySelector(sel); if (el) wrapWithCheck(el); });
-  setupPhoneMask(form);
-
+  // Recompute button disabled state on input
+  const watch = ["#firstName","#lastName","#email","#phone","#referrer","#smsConsent"];
   const updateButton = () => {
     const btn = form.querySelector("#continueBtn");
-    if (btn) btn.disabled = !form.checkValidity();
+    if (!btn) return;
+    btn.disabled = !form.checkValidity();
   };
-  const onFieldChange = (el) => {
-    clearError(el);
-    updateCheck(el);
-    updateButton();
-  };
-  watchSel.forEach(sel => {
+  watch.forEach(sel => {
     const el = form.querySelector(sel);
     if (!el) return;
-    el.addEventListener("input", () => onFieldChange(el));
-    el.addEventListener("change", () => onFieldChange(el));
+    el.addEventListener("input", () => { clearError(el); updateButton(); });
+    el.addEventListener("change", () => { clearError(el); updateButton(); });
   });
-  watchSel.forEach(sel => { const el=form.querySelector(sel); if (el) updateCheck(el); });
   updateButton();
 
-  // Submit: prevent refresh; show inline + native messages if invalid
+  // Intercept submit: never navigate; show errors if invalid
   form.addEventListener("submit", (e) => {
-    e.preventDefault();
+    e.preventDefault(); // <-- stops refresh
     if (!form.checkValidity()) {
       showInlineErrors(form);
-      form.reportValidity();
+      form.reportValidity(); // also show native bubble
       say("Please complete the required fields.");
       return;
     }
+    // Success path — keep user on page, show confirmation
     say("Thanks — we’ll follow up shortly.");
   });
 }
 
-// ---------- Phone mask (US 10-digit, ###-###-####) ----------
-function setupPhoneMask(form){
-  const phone = form.querySelector("#phone");
-  if (!phone) return;
-
-  phone.addEventListener("input", (e) => {
-    const el = e.target;
-    const oldVal = el.value;
-    const pos = el.selectionStart ?? oldVal.length;
-
-    const digitsBefore = countDigits(oldVal.slice(0, pos));
-    const digits = oldVal.replace(/\D/g, "").slice(0, 10);
-    const newVal = formatPhoneUS(digits);
-    el.value = newVal;
-
-    const newPos = caretFromDigits(newVal, digitsBefore);
-    try { el.setSelectionRange(newPos, newPos); } catch (_) {}
-
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-
-  phone.addEventListener("paste", (e) => {
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData("text") || "";
-    const digits = text.replace(/\D/g, "").slice(0, 10);
-    e.target.value = formatPhoneUS(digits);
-    e.target.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-}
-function formatPhoneUS(d){
-  if (!d) return "";
-  const len = d.length;
-  if (len <= 3) return d;
-  if (len <= 6) return `${d.slice(0,3)}-${d.slice(3)}`;
-  return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6,10)}`;
-}
-function countDigits(str){ return (str.match(/\d/g)||[]).length; }
-function caretFromDigits(formatted, digitCount){
-  if (digitCount <= 0) return 0;
-  let count = 0;
-  for (let i=0;i<formatted.length;i++){
-    if (/\d/.test(formatted[i])) count++;
-    if (count === digitCount) return i+1;
-  }
-  return formatted.length;
-}
-
-// ---------- Green ✓ ----------
-function injectCheckStyles(){
-  if (document.getElementById("validity-check-styles")) return;
-  const css = `
-    .field-wrap { position: relative; }
-    .field-wrap .valid-check {
-      position: absolute; right: 12px; top: 36px; transform: translateY(-50%);
-      font-size: 16px; line-height: 1; display: none;
-    }
-    .field-wrap.is-valid .valid-check { display: inline; color: #16a34a; }
-    input.invalid, select.invalid { border-color: #fca5a5; }
-  `;
-  const s = document.createElement("style");
-  s.id = "validity-check-styles";
-  s.textContent = css;
-  document.head.appendChild(s);
-}
-function wrapWithCheck(el){
+function ensureErrorSlot(el){
+  // Add a <div class="field-hint"> under the field if missing
   const wrap = el.closest("div");
   if (!wrap) return;
-  wrap.classList.add("field-wrap");
-  if (!wrap.querySelector(".valid-check")) {
-    const tick = document.createElement("span");
-    tick.className = "valid-check";
-    tick.textContent = "✓";
-    wrap.appendChild(tick);
+  if (!wrap.querySelector(".field-hint")) {
+    const hint = document.createElement("div");
+    hint.className = "field-hint";
+    hint.style.display = "none";
+    wrap.appendChild(hint);
   }
 }
-function updateCheck(el){
-  const wrap = el.closest(".field-wrap");
+function setError(el, msg){
+  const wrap = el.closest("div");
   if (!wrap) return;
-  const ok = el.type === "checkbox" ? el.checked && el.checkValidity() : el.checkValidity();
-  wrap.classList.toggle("is-valid", !!ok);
+  const hint = wrap.querySelector(".field-hint");
+  if (!hint) return;
+  hint.textContent = msg || "";
+  hint.style.display = msg ? "block" : "none";
+  el.classList.add("invalid");
+}
+function clearError(el){
+  const wrap = el.closest("div");
+  if (!wrap) return;
+  const hint = wrap.querySelector(".field-hint");
+  if (hint) { hint.textContent = ""; hint.style.display = "none"; }
+  el.classList.remove("invalid");
+}
+function showInlineErrors(form){
+  const f = (sel) => form.querySelector(sel);
+  const firstName = f("#firstName");
+  const lastName  = f("#lastName");
+  const email     = f("#email");
+  const phone     = f("#phone");
+  const referrer  = f("#referrer");
+  const consent   = f("#smsConsent");
+
+  if (firstName && !firstName.checkValidity()) setError(firstName, "First name is required.");
+  if (lastName  && !lastName.checkValidity())  setError(lastName,  "Last name is required.");
+  if (email     && !email.checkValidity())     setError(email,     email.validationMessage || "Enter a valid email.");
+  if (phone     && !phone.checkValidity())     setError(phone,     phone.validationMessage || "Enter a valid phone.");
+  if (referrer  && !referrer.checkValidity())  setError(referrer,  "Please select one option.");
+  if (consent   && !consent.checkValidity())   setError(consent,   "Please check this box to continue.");
 }
 
-// ---------- AUTOCOMPLETE (prefer LEGACY) ----------
+// ---------- AUTOCOMPLETE (new -> legacy -> Enter) ----------
 async function setupAutocomplete() {
   const host  = document.querySelector(".search-box");
   const input = document.getElementById("address");
   if (!host || !input) return;
 
-  // Enter-to-geocode fallback (always available)
+  // Enter-to-geocode fallback
   input.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -282,36 +241,22 @@ async function setupAutocomplete() {
     }
   });
 
-  // 1) Prefer LEGACY Autocomplete (most reliable with your key)
-  if (google?.maps?.places?.Autocomplete) {
-    const ac = new google.maps.places.Autocomplete(input, {
-      types: ["address"],
-      fields: ["formatted_address","geometry"]
-    });
-    flattenSearchBox(host);
-    styleSearchElement(input);
-
-    ac.addListener("place_changed", () => {
-      const p = ac.getPlace(); if (!p || !p.geometry) return;
-      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
-      setSatellite();
-      if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
-    });
-    searchControlEl = input;
-    console.log("[places] legacy Autocomplete ready");
-    say("Suggestions ready.");
-    return;
-  }
-
-  // 2) Fallback to new PlaceAutocompleteElement
+  // New Places element
   if (google?.maps?.places && "PlaceAutocompleteElement" in google.maps.places) {
     try {
       const pac = new google.maps.places.PlaceAutocompleteElement();
-      styleSearchElement(pac);
-      if (input && input.remove) input.remove();
-      if (host && host.replaceWith) host.replaceWith(pac);
-      else host.appendChild(pac);
-      searchControlEl = pac;
+      pac.placeholder = input.placeholder || "Search address...";
+ // style + replace wrapper so there’s only one box
+styleSearchElement(pac);
+if (input && input.remove) input.remove();
+if (host && host.replaceWith) {
+  host.replaceWith(pac);
+} else {
+  host.appendChild(pac);
+}
+searchControlEl = pac;
+
+
 
       pac.addEventListener("gmp-select", async ({ placePrediction }) => {
         try {
@@ -327,11 +272,30 @@ async function setupAutocomplete() {
       say("Suggestions ready.");
       return;
     } catch (e) {
-      console.warn("[places] new element failed; using Enter only:", e);
+      console.warn("[places] new element failed; falling back:", e);
     }
   }
 
-  // 3) Enter-only
+  // Legacy Autocomplete
+  if (google?.maps?.places?.Autocomplete) {
+    const ac = new google.maps.places.Autocomplete(input, {
+      types: ["address"], fields: ["formatted_address","geometry"]
+    });
+     flattenSearchBox(host);     // remove outer wrapper styling
+  styleSearchElement(input);  // round corners + placeholder
+    ac.addListener("place_changed", () => {
+      const p = ac.getPlace(); if (!p || !p.geometry) return;
+      moveCamera(p.geometry.location ?? null, p.geometry.viewport ?? null, 19);
+      setSatellite();
+      if (API_BASE_URL && p.formatted_address) tryDrawParcel(p.formatted_address);
+    });
+    searchControlEl = input;
+    console.log("[places] legacy Autocomplete ready");
+    say("Suggestions ready.");
+    return;
+  }
+
+  // Enter-only
   searchControlEl = input;
   console.warn("[places] no dropdown available; using Enter only");
   say("Press Enter to geocode.");
@@ -354,6 +318,8 @@ function geocode(q) {
     });
   });
 }
+
+/** Tight zoom + keep overhead (2D). */
 function moveCamera(location, viewport, zoom = 19) {
   if (location) {
     map.setCenter(location);
@@ -372,7 +338,7 @@ function moveCamera(location, viewport, zoom = 19) {
   keepOverhead();
 }
 
-// ---------- TOOLBAR ----------
+// ---------- TOOLBAR (auto-create if missing) ----------
 function ensureToolbar() {
   let tools = document.querySelector(".tools");
   if (tools) return tools;
@@ -403,6 +369,7 @@ function ensureToolbar() {
   return tools;
 }
 
+// ---------- DRAWING TOOLS ----------
 function setupDrawingTools() {
   if (!google?.maps?.drawing) {
     console.error("[drawing] library missing");
@@ -419,7 +386,7 @@ function setupDrawingTools() {
   bind("btnManualTurf", startDrawingTurf);
   bind("measureBtn", () => { say("Click around the turf; double-click to finish."); startDrawingTurf(); });
 
-  // Page refresh for "Search Again"
+  // REFRESH the whole page on "Search Again"
   bind("btnSearchAgain", forceReload);
 
   bind("btnReset", () => { resetAll(false); });
@@ -533,6 +500,17 @@ function redo(){
   updateAreas(); say("Redid last action.");
 }
 
+// ---------- SAVE ----------
+function saveGeoJSON(){
+  const gj = { type:"FeatureCollection", features:[] };
+  if (lotPolygon) gj.features.push(polygonToFeature(lotPolygon,{kind:"lot"}));
+  turfPolys.forEach((poly,i)=>gj.features.push(polygonToFeature(poly,{kind:"turf",index:i})));
+  const blob = new Blob([JSON.stringify(gj,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download="measurement.geojson"; a.click();
+  URL.revokeObjectURL(a.href); say("Saved GeoJSON.");
+}
+
 // ---------- Optional parcel fetch ----------
 async function tryDrawParcel(formattedAddress){
   if (!API_BASE_URL) return;
@@ -555,7 +533,7 @@ function drawParcel(geometry){
   fit(lotPolygon); updateAreas(); say("Parcel drawn — add turf polygons.");
 }
 
-// ---------- Misc helpers ----------
+// ---------- HELPERS ----------
 function keepOverhead(){ map.setHeading(0); map.setTilt(0); }
 function lockOverhead(){
   map.addListener("tilt_changed",   ()=> map.getTilt()!==0    && map.setTilt(0));
@@ -573,6 +551,7 @@ function attachPathListeners(poly){ const path=poly.getPath(); ["set_at","insert
 function bind(id,fn){ const el=byId(id); if(el) el.addEventListener("click", fn); }
 function byId(id){ return document.getElementById(id); }
 function say(t){ const el=byId("mapCaption"); if(el) el.textContent=t; }
+
 function polygonToFeature(poly, props){
   const coords = [ pathToLngLatArray(poly.getPath()) ];
   return { type:"Feature", geometry:{ type:"Polygon", coordinates: coords }, properties: props||{} };
@@ -597,71 +576,30 @@ function extractOuterRing(g){
   if (g.type==="Polygon")      return c?.[0]||null;
   if (Array.isArray(c?.[0]) && typeof c[0][0]==="number") return c;
   return null;
-}
-
-// ---- Search UI styles helpers ----
-function styleSearchElement(el) {
-  if (!el) return;
-  el.style.display = "block";
-  el.style.width = "100%";
-  el.style.boxSizing = "border-box";
-  el.style.border = "2px solid #1f2937";
-  el.style.borderRadius = "999px";
-  el.style.padding = "10px 14px";
-  el.style.background = "#e5e7eb";
-  el.style.color = "#111827";
-  el.style.outline = "none";
-  if ("placeholder" in el) {
-    el.placeholder = "Search address (street, city or full address)…";
-  }
-}
+} 
 function flattenSearchBox(host){
+  // Remove the outer pill so we don't see a box-inside-a-box
   if (!host) return;
   host.style.border = "0";
   host.style.padding = "0";
   host.style.background = "transparent";
   host.style.borderRadius = "0";
   host.style.boxShadow = "none";
-}
-function ensureErrorSlot(el){
-  const wrap = el.closest("div");
-  if (!wrap) return;
-  if (!wrap.querySelector(".field-hint")) {
-    const hint = document.createElement("div");
-    hint.className = "field-hint";
-    hint.style.display = "none";
-    wrap.appendChild(hint);
+} 
+function styleSearchElement(el) {
+  if (!el) return;
+  // visuals
+  el.style.display = "block";
+  el.style.width = "100%";
+  el.style.boxSizing = "border-box";
+  el.style.border = "2px solid #1f2937";
+  el.style.borderRadius = "999px";      // <- round corners (change to "12px" if you prefer)
+  el.style.padding = "10px 14px";
+  el.style.background = "#e5e7eb";
+  el.style.color = "#111827";
+  el.style.outline = "none";
+  // helper text
+  if ("placeholder" in el) {
+    el.placeholder = "Search address (street, city or full address)…";
   }
-}
-function setError(el, msg){
-  const wrap = el.closest("div");
-  if (!wrap) return;
-  const hint = wrap.querySelector(".field-hint");
-  if (!hint) return;
-  hint.textContent = msg || "";
-  hint.style.display = msg ? "block" : "none";
-  el.classList.add("invalid");
-}
-function clearError(el){
-  const wrap = el.closest("div");
-  if (!wrap) return;
-  const hint = wrap.querySelector(".field-hint");
-  if (hint) { hint.textContent = ""; hint.style.display = "none"; }
-  el.classList.remove("invalid");
-}
-function showInlineErrors(form){
-  const f = (sel) => form.querySelector(sel);
-  const firstName = f("#firstName");
-  const lastName  = f("#lastName");
-  const email     = f("#email");
-  const phone     = f("#phone");
-  const referrer  = f("#referrer");
-  const consent   = f("#smsConsent");
-
-  if (firstName && !firstName.checkValidity()) setError(firstName, "First name is required.");
-  if (lastName  && !lastName.checkValidity())  setError(lastName,  "Last name is required.");
-  if (email     && !email.checkValidity())     setError(email,     email.validationMessage || "Enter a valid email.");
-  if (phone     && !phone.checkValidity())     setError(phone,     phone.validationMessage || "Use 555-123-4567.");
-  if (referrer  && !referrer.checkValidity())  setError(referrer,  "Please select one option.");
-  if (consent   && !consent.checkValidity())   setError(consent,   "Please check this box to continue.");
 }
