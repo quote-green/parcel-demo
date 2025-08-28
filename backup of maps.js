@@ -1,15 +1,17 @@
-// js/map.js — stable build: map + autocomplete + parcel + required-fields UX
+// js/map.js — stable: map + autocomplete + parcel + native form validation
 (() => {
   "use strict";
 
-  // One-time global for your Vercel API
+  // One-time global for your Vercel API (safe even if the script is included twice)
   if (!window.API_BASE_URL) window.API_BASE_URL = "https://parcel-api-ohx5.vercel.app";
 
   let map, ac, marker;
 
-  // Google callback (must exist once)
+  // ----------------------------
+  // Google Maps entry point
+  // ----------------------------
   window.initMap = function initMap() {
-    // --- Base map ---
+    // Base map
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 37.773972, lng: -122.431297 },
       zoom: 13,
@@ -25,14 +27,11 @@
 
     marker = new google.maps.Marker({ map, visible: false });
 
-    // --- Form UX: make Continue a controlled button (no page reload) ---
-    setupFormValidation();
-
-    // --- “Search Again” (optional) ---
+    // "Search Again" button
     const again = document.getElementById("btnSearchAgain");
     if (again) again.addEventListener("click", (e) => { e.preventDefault(); resetApp(true); });
 
-    // --- Autocomplete on #address ---
+    // Autocomplete on #address (legacy widget)
     const input = document.getElementById("address");
     if (!input || !google.maps.places) {
       console.warn("Missing #address or Places library");
@@ -81,7 +80,48 @@
     say("Search an address to begin.");
   };
 
-  // ---------- Camera / UI ----------
+  // ----------------------------
+  // Form: native validation UX
+  // ----------------------------
+  function setupFormValidation() {
+    const form = document.getElementById("contactForm");
+    const btn  = document.getElementById("continueBtn");
+    if (!form || !btn) return;
+
+    // Keep this as a BUTTON (no page refresh). We will explicitly ask the browser to validate.
+    btn.type = "button";
+
+    // Click → show native tooltip if invalid; otherwise handle success without reloading
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+
+      // Ask the browser to validate and show native tooltip on the first invalid field
+      const ok = form.reportValidity();   // returns false if invalid (and shows bubble)
+      if (!ok) {
+        const firstInvalid = form.querySelector(":invalid");
+        if (firstInvalid) {
+          firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+          firstInvalid.focus({ preventScroll: true });
+        }
+        return;
+      }
+
+      // ✅ All fields valid — do your next step here (no page reload)
+      say("Thanks — we’ll follow up shortly.");
+      // TODO: send form data to your backend if desired
+    });
+  }
+
+  // Run form wiring as soon as DOM is ready (works even if Maps hasn’t loaded yet)
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupFormValidation);
+  } else {
+    setupFormValidation();
+  }
+
+  // ----------------------------
+  // Camera / UI helpers
+  // ----------------------------
   function moveCamera(point, viewport, fallbackZoom = 18) {
     if (viewport) {
       map.fitBounds(viewport);
@@ -94,32 +134,9 @@
   function setSatellite() { map.setMapTypeId("satellite"); map.setTilt(0); map.setHeading(0); }
   function say(msg) { const el = document.getElementById("mapCaption"); if (el) el.textContent = msg; }
 
-  // ---------- Form validation (no refresh; show what’s missing) ----------
-  function setupFormValidation() {
-    const form = document.getElementById("contactForm");
-    const btn = document.getElementById("continueBtn");
-    if (!form || !btn) return;
-
-    // Prevent default submit refresh; we manage it in JS
-    btn.type = "button";
-
-    const update = () => { btn.disabled = !form.checkValidity(); };
-    form.addEventListener("input", update);
-    form.addEventListener("change", update);
-    update();
-
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (!form.checkValidity()) {
-        form.reportValidity(); // native tooltip on the first invalid field
-        return;
-      }
-      // ✅ All good — do your next step here (no page reload)
-      say("Thanks — we’ll follow up shortly.");
-    });
-  }
-
-  // ---------- Precisely API ----------
+  // ----------------------------
+  // Precisely API
+  // ----------------------------
   async function fetchParcelByAddress(address) {
     const base = window.API_BASE_URL;
     if (!base) throw new Error("Set API_BASE_URL to your Vercel app URL");
@@ -129,11 +146,14 @@
     return await res.json();
   }
 
-  // ---------- Draw ONE parcel (stored on map to avoid global collisions) ----------
+  // ----------------------------
+  // Draw ONE parcel (store ref on map to avoid global collisions)
+  // ----------------------------
   function setParcelPolygon(poly) {
     if (map && map.__parcelPolygon) map.__parcelPolygon.setMap(null);
     if (map) map.__parcelPolygon = poly || null;
   }
+
   function drawSingleParcel(geom) {
     setParcelPolygon(null);
 
@@ -161,7 +181,9 @@
     }
   }
 
-  // ---------- Feature selection (correct lot) ----------
+  // ----------------------------
+  // Pick the right parcel
+  // ----------------------------
   function chooseBestFeature(features, focusLatLng) {
     if (!features?.length) return null;
     if (!focusLatLng) return features[0];
@@ -184,7 +206,9 @@
     return best;
   }
 
-  // ---------- Geometry helpers ----------
+  // ----------------------------
+  // Geometry helpers
+  // ----------------------------
   function geometryToPath(geom) {
     if (!geom) return [];
     if (geom.type === "Polygon") {
@@ -217,7 +241,9 @@
     return m2 * 10.7639;
   }
 
-  // ---------- Reset (Search Again) ----------
+  // ----------------------------
+  // Reset (Search Again)
+  // ----------------------------
   function resetApp(keepForm) {
     setParcelPolygon(null);
     if (marker) marker.setVisible(false);
@@ -239,30 +265,5 @@
   }
   function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
   function setCheck(id, v) { const el = document.getElementById(id); if (el && "checked" in el) el.checked = !!v; }
-// --- Required-fields UX: prevent refresh, show what's missing ---
-// Native validation + prevent reload on valid submit
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("contactForm");
-  const btn  = document.getElementById("continueBtn");
-  if (!form || !btn) return;
-
-  // Ensure the button is a real submit so the browser can show bubbles
-  btn.type = "submit";
-
-  // Keep the button disabled until valid (nice UX)
-  const update = () => { btn.disabled = !form.checkValidity(); };
-  form.addEventListener("input", update);
-  form.addEventListener("change", update);
-  update();
-
-  // If the form is invalid, the browser will STOP submission and show bubble
-  // If valid, this runs — we prevent page reload and do our thing
-  form.addEventListener("submit", (e) => {
-    e.preventDefault(); // form is valid at this point
-    const cap = document.getElementById("mapCaption");
-    if (cap) cap.textContent = "Thanks — we’ll follow up shortly.";
-    // TODO: send data to your backend here if desired
-  });
-});
 
 })();
