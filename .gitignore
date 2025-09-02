@@ -1,0 +1,4 @@
+# Keep environment files (API keys) out of Git
+.env
+**/.env
+backend/.env
